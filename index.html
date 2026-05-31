@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- v0.5: GitHub Pages公開・スマホ対応 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>退職後のお金シミュレーター v0.5</title>
+    <!-- v0.5: GitHub Pages公開・スマホ対応。計算ロジックはv0.4から変更なし。 -->
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        .tab-active { border-color: #2563eb; color: #2563eb; background-color: #f0f6ff; }
+        #print-area { display: none; }
+        
+        /* 表示パターン切り替え用のCSS制御 */
+        body:not(.show-pat-a) .pat-a { display: none !important; }
+        body:not(.show-pat-b) .pat-b { display: none !important; }
+        body:not(.show-pat-c) .pat-c { display: none !important; }
+
+        /* ツールチップ（ポップアップ説明）用のCSS */
+        .tooltip-label {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dotted #94a3b8;
+        }
+        .tooltip-label::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 5px;
+            padding: 6px 10px;
+            background-color: #1e293b;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: normal;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            width: max-content;
+            max-width: 250px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            z-index: 50;
+            pointer-events: none;
+        }
+        .tooltip-label::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1e293b;
+            margin-bottom: -5px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            z-index: 50;
+            pointer-events: none;
+        }
+        .tooltip-label:hover::after,
+        .tooltip-label:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+
+
+
+        /* v0.5 GitHub Pages公開版：スマホ表示補正 */
+        html { scroll-behavior: smooth; }
+        input, select, textarea, button { touch-action: manipulation; }
+        .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+        .mobile-only { display: none; }
+
+        @media (max-width: 900px) {
+            body { font-size: 16px; }
+            header .max-w-\[1600px\], footer.max-w-\[1600px\] { max-width: 100% !important; }
+            header .max-w-\[1600px\] { flex-direction: column !important; align-items: stretch !important; gap: 0.9rem !important; }
+            header h1 { font-size: 1.25rem !important; line-height: 1.5 !important; }
+            header .bg-white.p-2 { padding: 0.45rem !important; }
+            header [data-lucide="trending-up"] { width: 1.5rem !important; height: 1.5rem !important; }
+            #header-subtitle { line-height: 1.6; }
+
+            main.max-w-\[1600px\], footer.max-w-\[1600px\] { max-width: 100% !important; padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+            main { padding-top: 0.75rem !important; }
+            .tab-content { padding: 1rem !important; border-radius: 1rem !important; }
+            .mobile-only { display: block; }
+
+            /* PC前提のグリッドをスマホでは1列へ */
+            .grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-12 { grid-template-columns: minmax(0, 1fr) !important; }
+            .col-span-1, .col-span-2, .col-span-3, .col-span-4, .col-span-5, .col-span-6, .col-span-7, .col-span-8, .col-span-9, .col-span-10, .col-span-11, .col-span-12 { grid-column: span 1 / span 1 !important; }
+            .gap-6 { gap: 1rem !important; }
+            .gap-4 { gap: 0.75rem !important; }
+
+            /* タブは横スクロール可能にして、押しやすくする */
+            .tab-content + .tab-content { margin-top: 0; }
+            div:has(> button[id^="tab-"]) { overflow-x: auto; flex-wrap: nowrap !important; justify-content: flex-start !important; padding-bottom: 0.5rem !important; }
+            button[id^="tab-"] { flex: 0 0 auto !important; min-width: 8.2rem !important; padding-left: 0.8rem !important; padding-right: 0.8rem !important; white-space: nowrap; }
+
+            input, select, button { min-height: 44px; font-size: 16px !important; }
+            input[type="checkbox"], input[type="radio"] { min-height: auto; width: 1.2rem; height: 1.2rem; }
+            .text-xs { font-size: 0.82rem !important; }
+            .text-sm { font-size: 0.95rem !important; }
+            .text-lg { font-size: 1.1rem !important; }
+            .text-xl { font-size: 1.25rem !important; }
+
+            /* 表は横スクロール前提。列を無理につぶさない */
+            table { min-width: 760px; }
+            #detail-table-body { font-size: 0.75rem; }
+            .overflow-x-auto::before { content: "表は左右にスクロールできます"; display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 0.35rem; }
+
+            /* グラフをスマホでも見やすくする */
+            #savingsChart { min-height: 280px; }
+            .h-\[320px\] { height: 300px !important; }
+
+            /* モーダルの余白調整 */
+            #info-modal .max-w-md, #save-modal .max-w-md, #confirm-modal .max-w-md { width: calc(100vw - 1.5rem) !important; max-width: none !important; }
+        }
+
+        @media (max-width: 480px) {
+            header .flex.items-center.gap-3 { align-items: flex-start !important; }
+            .px-4 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+            .p-6 { padding: 1rem !important; }
+            .p-5 { padding: 1rem !important; }
+            .p-4 { padding: 0.85rem !important; }
+            button[id^="tab-"] { min-width: 7.4rem !important; }
+            table { min-width: 700px; }
+        }
+
+        /* 印刷用スタイル定義 */
+        @media print {
+            header, .no-print, main, footer, #save-modal, #confirm-modal, #info-modal, .tab-content { display: none !important; }
+            #print-area { display: block !important; background-color: #ffffff !important; color: #000000 !important; width: 100% !important; margin: 0 !important; padding: 10px !important; }
+            table { page-break-inside: auto !important; width: 100% !important; border-collapse: collapse !important; }
+            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+            thead { display: table-header-group !important; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen show-pat-a show-pat-b show-pat-c">
+
+    <header class="bg-gradient-to-r from-blue-900 to-indigo-800 text-white shadow-md no-print">
+        <div class="max-w-[1600px] w-full mx-auto px-4 py-5 flex justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-lg text-blue-900">
+                    <i data-lucide="trending-up" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">退職後のお金シミュレーター <span class="text-sm font-semibold text-blue-200 align-middle">v0.5</span></h1>
+                    <p class="text-xs text-blue-200 mt-1" id="header-subtitle">スマホ対応版｜GitHub Pages公開用｜参考用・個人利用限定｜前提条件・対象外ケースあり</p>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-2 bg-blue-950/40 p-2 rounded-lg border border-blue-700/50">
+                <span class="text-xs text-blue-200 font-medium px-2">データ管理:</span>
+                <button onclick="openSaveModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded shadow transition-all">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i> バックアップ保存
+                </button>
+                <label class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded shadow cursor-pointer transition-all">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i> データ読込
+                    <input type="file" id="importFile" accept=".json" onchange="importData(event)" class="hidden">
+                </label>
+                <button onclick="confirmReset()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded shadow transition-all">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> リセット
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="bg-blue-50 border-b border-blue-100 py-2.5 no-print">
+        <div class="max-w-[1600px] w-full mx-auto px-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-1.5 text-blue-900 font-bold">
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                <span>クイック設定:</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="loadTemplate('couple')" class="px-3 py-1 bg-white hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold rounded shadow-sm transition-all flex items-center gap-1">
+                    <i data-lucide="users" class="w-3.5 h-3.5"></i> 【サンプル】夫婦標準プランを読込
+                </button>
+                <button onclick="loadTemplate('single')" class="px-3 py-1 bg-white hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold rounded shadow-sm transition-all flex items-center gap-1">
+                    <i data-lucide="user" class="w-3.5 h-3.5"></i> 【サンプル】単身標準プランを読込
+                </button>
+                <button onclick="confirmClear()" class="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded shadow-sm transition-all flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 入力欄をすべて空にする
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-[1600px] w-full mx-auto px-4 py-6 no-print">
+        <div class="grid grid-cols-4 gap-6 mb-8">
+            <div class="col-span-1 flex flex-col gap-4">
+                <!-- サマリーカード -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2 border-b pb-2">
+                        <i data-lucide="wallet" class="w-4 h-4 text-blue-600"></i>現在の基本ステータス
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-500">プラン名</span>
+                            <span class="font-bold text-slate-800 text-right truncate max-w-[120px]" id="summary-planname">未設定</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-500">現在年齢 / 試算終了</span>
+                            <span class="font-bold text-slate-800" id="summary-age">59歳 / 80歳</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-500">初期貯蓄額 (運用含)</span>
+                            <span class="font-bold text-blue-700" id="summary-savings">0円</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-500">世帯区分</span>
+                            <span class="font-bold text-slate-800" id="summary-household">夫婦</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 危険サイン -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2 text-rose-600 border-b pb-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>危険サイン・確認
+                    </h3>
+                    <div class="space-y-3 text-xs" id="danger-signs-container">
+                        <!-- 動的に挿入 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-span-3 flex flex-col gap-4">
+                <!-- タブメニュー -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-1.5 flex flex-wrap gap-1">
+                    <button onclick="switchTab('guide')" id="tab-guide" class="flex-1 min-w-[80px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1 tab-active">
+                        <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 使い方
+                    </button>
+                    <button onclick="switchTab('basic')" id="tab-basic" class="flex-1 min-w-[100px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="user" class="w-3.5 h-3.5"></i>基本情報&設定
+                    </button>
+                    <button onclick="switchTab('pension')" id="tab-pension" class="flex-1 min-w-[80px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="piggy-bank" class="w-3.5 h-3.5"></i>年金
+                    </button>
+                    <button onclick="switchTab('income-expense')" id="tab-income-expense" class="flex-1 min-w-[80px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>継続収支
+                    </button>
+                    <button onclick="switchTab('temp')" id="tab-temp" class="flex-1 min-w-[80px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i>一時収支
+                    </button>
+                    <button onclick="switchTab('results')" id="tab-results" class="flex-1 min-w-[100px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>推移・印刷
+                    </button>
+                    <button onclick="switchTab('todo')" id="tab-todo" class="flex-1 min-w-[80px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="check-square" class="w-3.5 h-3.5"></i>やること
+                    </button>
+                    <button onclick="switchTab('knowledge')" id="tab-knowledge" class="flex-1 min-w-[100px] py-2.5 px-1 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                        <i data-lucide="library" class="w-3.5 h-3.5"></i>制度・計算
+                    </button>
+                </div>
+
+                <!-- 使い方 -->
+                <div id="content-guide" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 mb-1 flex items-center gap-2">
+                            <i data-lucide="book-open" class="text-blue-600 w-5 h-5"></i> 退職後のお金シミュレーター 使い方
+                        </h2>
+                        <p class="text-xs text-slate-500">このツールは、退職後の収入・生活費・年金・一時的な支出などを入力し、将来のお金の流れを整理するための参考用シミュレーターです。</p>
+                    </div>
+
+                    <div class="mobile-only bg-indigo-50 p-4 rounded-xl border border-indigo-200 text-xs text-indigo-950 leading-relaxed">
+                        <h3 class="font-bold text-indigo-900 text-sm mb-2 flex items-center gap-1.5">
+                            <i data-lucide="smartphone" class="w-4 h-4 text-indigo-700"></i> スマホで使う場合
+                        </h3>
+                        <p>このv0.5はスマホ表示に対応した公開版です。入力や結果確認はスマホでもできますが、詳細表は横スクロールになります。バックアップ保存、データ読込、CSV出力、印刷はPC利用を推奨します。</p>
+                        <p class="mt-2">入力データは利用している端末・ブラウザ内に保存されます。スマホとPCの間で自動共有はされません。ブラウザの履歴・サイトデータを削除すると、保存済みデータが消える場合があります。</p>
+                    </div>
+
+                    <div class="bg-rose-50/80 p-5 rounded-xl border border-rose-200 space-y-4 text-xs">
+                        <h3 class="font-bold text-rose-800 text-sm flex items-center gap-1.5">
+                            <i data-lucide="file-warning" class="w-4 h-4 text-rose-600"></i> 計算の前提条件・免責事項
+                        </h3>
+                        <div class="bg-white/70 border border-rose-100 rounded-lg p-3 leading-relaxed text-rose-900">
+                            <p class="font-bold mb-1">【免責事項】</p>
+                            <p>
+                                本シミュレーターは、退職後のお金の流れを考えるための参考用ツールです。計算結果に基づく年金受給タイミングの選択、投資、住み替え、保険見直し、その他の財務判断について、当サイトおよび作成者は責任を負いません。<br>
+                                個別の事情や正確な金額については、必ず年金事務所、市区町村、税務署、健康保険組合、社会保険労務士、税理士、ファイナンシャルプランナー等の専門家・公的窓口にご相談ください。
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white/70 border border-rose-100 rounded-lg p-3 leading-relaxed text-slate-700">
+                                <p class="font-bold text-slate-800 mb-1">【対象と前提】</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li>主に定年前後から老後期までの家計の流れを見るための概算です。</li>
+                                    <li>年金・継続収入・生活費・一時収支を入力し、残高推移を確認する用途を想定しています。</li>
+                                    <li>税金、国民健康保険料、介護保険料、後期高齢者医療保険料などは概算です。</li>
+                                    <li>自治体、世帯構成、所得、加入保険、制度改正により実際の金額は変わります。</li>
+                                    <li>本ツール作成時点で確認した制度・公開情報をもとに、分かりやすさを優先して簡略化しています。</li>
+                                </ul>
+                            </div>
+                            <div class="bg-amber-50/90 border border-amber-200 rounded-lg p-3 leading-relaxed text-amber-950">
+                                <p class="font-bold text-amber-900 mb-1">【この計算が向かないケース】</p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li>給与・事業所得・不動産収入・投資収益が大きく、所得構造が複雑な方</li>
+                                    <li>健康保険組合、共済、任意継続などの個別条件を正確に反映したい方</li>
+                                    <li>障害年金、遺族年金、企業年金、退職所得、売却益、相続、贈与などを精密に扱いたい方</li>
+                                    <li>自治体ごとの国保料・介護保険料・住民税を正確に計算したい方</li>
+                                    <li>住宅売却、住み替え、介護施設入居、医療費負担などの個別判断をしたい方</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 leading-relaxed text-blue-950">
+                            <p class="font-bold text-blue-900 mb-1">【主な確認先】</p>
+                            <ul class="grid grid-cols-2 gap-x-6 gap-y-1 list-disc pl-5">
+                                <li>年金額・繰上げ・繰下げ：年金事務所</li>
+                                <li>国民健康保険料：市区町村</li>
+                                <li>住民税・非課税判定：市区町村</li>
+                                <li>介護保険料：市区町村</li>
+                                <li>所得税・譲渡所得・退職所得：税務署または税理士</li>
+                                <li>失業給付：ハローワーク</li>
+                                <li>勤務先の健康保険：勤務先または健康保険組合</li>
+                                <li>家計全体・老後資金：ファイナンシャルプランナー等</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5 text-xs">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                            <i data-lucide="shield-check" class="text-blue-600 w-4 h-4"></i> 安全性とデータの扱い
+                        </h3>
+                        <p class="text-slate-600 leading-relaxed">
+                            本ツールは、GitHub Pages上でブラウザから開ける公開版です。入力された資産情報や家族構成などの個人データは、作成者のサーバーへ保存・送信する仕組みにはしていません。計算と保存は、ご利用中の端末ブラウザ内（ローカル）で行います。<br>
+                            なお、画面表示のために外部CDNからライブラリやフォントを読み込む場合があります。個人情報をクラウドに預けるタイプのサービスではありませんが、最終的な利用環境はご自身の責任で確認してください。スマホとPCのデータは自動共有されません。
+                        </p>
+                    </div>
+
+                    <div class="bg-slate-100/80 p-5 rounded-xl border border-slate-200">
+                        <h3 class="font-bold text-slate-800 text-sm mb-2 flex items-center gap-1.5">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-slate-600"></i> 免責事項・ご利用上の注意
+                        </h3>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            本ツールによるシミュレーション結果は、退職後のお金の流れを整理するための概算です。実際に受け取る年金額、税額、健康保険料、介護保険料、後期高齢者医療保険料、給付金、医療費、住まいに関する費用などを確定・保証するものではありません。<br>
+                            制度は、年齢、所得、世帯状況、お住まいの自治体、加入している健康保険、今後の制度改正によって変わります。実際の判断をされる場合は、年金事務所、市区町村、税務署、健康保険組合、ハローワーク、金融機関、専門家などに確認してください。<br>
+                            個別の入力内容確認、家計診断、税金・保険料の計算代行、購入者ごとのカスタマイズや個別サポートは行っていません。
+                        </p>
+                    </div>
+
+                    <div class="bg-amber-50/80 p-5 rounded-xl border border-amber-200">
+                        <h3 class="font-bold text-amber-900 text-sm mb-2 flex items-center gap-1.5">
+                            <i data-lucide="lock" class="w-4 h-4 text-amber-700"></i> 著作権・利用条件
+                        </h3>
+                        <div class="text-xs text-amber-950 leading-relaxed space-y-2">
+                            <p>本ツール、画面デザイン、文章、付属資料の著作権は著者に帰属します。</p>
+                            <p>本ツールは、ご本人が退職後のお金を考えるための参考利用、または家族内で相談するための利用を目的として公開しています。公式公開ページへのリンク共有と、自分用のバックアップ保存は問題ありません。</p>
+                            <p class="font-bold">以下の行為は行わないでください。</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>本ツール、本文、付属資料の無断転載</li>
+                                <li>HTMLソースやファイルの転載・再配布</li>
+                                <li>改変版の配布、販売、公開</li>
+                                <li>有料・無料を問わず、コピーしたファイルを第三者が利用できる状態で公開すること</li>
+                                <li>ファイル共有サービス、SNS、ブログ、Webサイト等へのアップロード</li>
+                                <li>内容をコピーして、自分の商品・教材・サービスとして販売または配布すること</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4 text-xs pt-2">
+                        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex flex-col">
+                            <span class="bg-blue-600 text-white rounded-full w-5 h-5 inline-flex items-center justify-center font-bold mb-2">1</span>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1.5">基本情報を入力</h3>
+                            <p class="text-slate-600 leading-relaxed">まずは「基本情報 & 設定」タブで、現在年齢、試算終了年齢、現在の貯蓄額などを入力します。</p>
+                        </div>
+                        <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-100 flex flex-col">
+                            <span class="bg-amber-600 text-white rounded-full w-5 h-5 inline-flex items-center justify-center font-bold mb-2">2</span>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1.5">収支・年金を登録</h3>
+                            <p class="text-slate-600 leading-relaxed">「年金」「継続収支」「一時収支」の各タブに沿って、今後の収入や出費の予定を入力します。</p>
+                        </div>
+                        <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 flex flex-col">
+                            <span class="bg-emerald-600 text-white rounded-full w-5 h-5 inline-flex items-center justify-center font-bold mb-2">3</span>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1.5">結果の比較と保存</h3>
+                            <p class="text-slate-600 leading-relaxed">「推移・印刷」タブで、年金受給パターンの比較グラフや詳細な税金内訳を確認します。</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-2">
+                        <button onclick="switchTab('basic')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-5 rounded-lg shadow-md transition-all flex items-center gap-1.5">
+                            シミュレーションを開始する <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 基本情報 -->
+                <div id="content-basic" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6 hidden">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                            <span class="w-1 h-5 bg-blue-600 rounded-full"></span> 家族・基本情報設定
+                        </h2>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-6">
+                        <!-- 基本 -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">プラン名</label>
+                                <input type="text" id="basic-planName" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-medium">
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">現在年齢 (歳)</label>
+                                    <input type="number" id="basic-currentAge" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">終了年齢 (歳)</label>
+                                    <input type="number" id="basic-endAge" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">現在の貯蓄 (円)</label>
+                                <input type="number" id="basic-currentSavings" class="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-blue-700">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">老後の最低目標貯蓄額 (円)</label>
+                                <input type="number" id="basic-minTargetSavings" class="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-amber-600" title="葬儀代や予備費など、死ぬまで残しておきたい最低金額。">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">退職予定年齢 (歳)</label>
+                                <input type="number" id="basic-retireAge" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                            </div>
+                        </div>
+
+                        <!-- 家族 -->
+                        <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-sm text-slate-800 border-b pb-1.5">世帯・配偶者詳細</h3>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">世帯区分</label>
+                                <select id="basic-householdType" onchange="toggleSpouseFields()" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                    <option value="夫婦">夫婦</option>
+                                    <option value="単身">単身</option>
+                                </select>
+                            </div>
+                            <div class="spouse-field flex gap-4">
+                                <div class="flex-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">配偶者年齢</label>
+                                    <input type="number" id="basic-spouseAge" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">年金開始(歳)</label>
+                                    <input type="number" id="basic-spousePensionStart" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                </div>
+                            </div>
+                            <div class="spouse-field border-t border-slate-200 pt-3">
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">配偶者を扶養に入れるか</label>
+                                <select id="basic-isSpouseDependent" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                    <option value="はい">はい（配偶者控除に含める）</option>
+                                    <option value="いいえ">いいえ（共働き等で扶養外）</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1">配偶者<span class="text-rose-600 underline">以外</span>の扶養人数</label>
+                                <input type="number" id="basic-dependents" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            </div>
+                        </div>
+
+                        <!-- 運用 -->
+                        <div class="col-span-2 space-y-4 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                            <h3 class="font-bold text-sm text-emerald-900 border-b border-emerald-200 pb-1.5 flex items-center gap-1.5">
+                                <i data-lucide="trending-up" class="w-4 h-4 text-emerald-700"></i> NISA・iDeCo等の運用設定
+                            </h3>
+                            <div class="grid grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-emerald-800 mb-1">現在の運用残高 (円)</label>
+                                    <input type="number" id="basic-currentInvestment" class="w-full px-3 py-2 border border-emerald-300 bg-white rounded-lg font-bold text-emerald-700">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-emerald-800 mb-1">想定利回り (%/年)</label>
+                                    <input type="number" id="basic-investmentReturnRate" step="0.1" class="w-full px-3 py-2 border border-emerald-300 bg-white rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-emerald-800 mb-1">毎月の積立額 (円)</label>
+                                    <input type="number" id="basic-investmentMonthlyAmount" class="w-full px-3 py-2 border border-emerald-300 bg-white rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-emerald-800 mb-1">積立終了年齢 (歳)</label>
+                                    <input type="number" id="basic-investmentEndAge" class="w-full px-3 py-2 border border-emerald-300 bg-white rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 詳細設定 -->
+                    <div class="border-t pt-6">
+                        <button onclick="toggleSection('detailed-settings')" class="flex items-center justify-between w-full py-2 text-slate-700 hover:text-slate-900 font-bold text-left border-b">
+                            <span class="flex items-center gap-2"><i data-lucide="settings" class="w-5 h-5 text-blue-600"></i> 詳細設定 (税率・保険料・物価上昇率など)</span>
+                            <i data-lucide="chevron-down" id="arrow-detailed-settings" class="w-5 h-5 transition-transform rotate-180"></i>
+                        </button>
+                        <div id="section-detailed-settings" class="mt-4 grid grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;「継続支出」で入力された金額に対し、毎年この割合で複利計算して支出を増やします。&#10;【目安】&#10;通常は1.0%〜2.0%程度です。固定値にしたい場合は0にしてください。">生活費上昇率 (%)</label><input type="number" id="set-inflationRate" step="0.1" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;年金を65歳より前に繰り上げ受給した際の、1ヶ月あたりの減額率です。&#10;【目安】&#10;・昭和37年4月2日以降生まれ：0.4%&#10;・昭和37年4月1日以前生まれ：0.5%">繰上げ減額率/月 (%)</label><input type="number" id="set-earlyReduction" step="0.05" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;年金を66歳以降に繰り下げ受給した際の、1ヶ月あたりの増額率です。&#10;【目安】&#10;制度改定後も一律 0.7% で固定されています。">繰下げ増額率/月 (%)</label><input type="number" id="set-lateIncrease" step="0.05" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;所得税を計算する際の税率（概算）です。&#10;課税対象所得 × この税率 で所得税を算出します。&#10;【目安】&#10;一般的な年金生活者の場合、課税所得195万円以下（税率5%）に収まることが多いため、5.0%としています。">所得税概算率 (%)</label><input type="number" id="set-incomeTaxRate" step="0.5" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;住民税の「所得割（所得に比例する部分）」を計算する際の税率です。&#10;【目安】&#10;全国一律で 10.0% （道府県民税4%＋市町村民税6%）で固定されています。">住民税所得割率 (%)</label><input type="number" id="set-residentTaxRate" step="0.5" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;住民税の「均等割（所得に関わらず定額でかかる部分）」の年額です。&#10;【目安】&#10;自治体により異なりますが、年間 4,000円〜6,000円 程度です。">住民税均等割 (円)</label><input type="number" id="set-residentTaxFlat" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;所得税の計算時に、すべての人から無条件で差し引かれる控除額です。&#10;【目安】&#10;合計所得金額が2,400万円以下の場合は 480,000円 で固定です。">所得税基礎控除 (円)</label><input type="number" id="set-basicDeductionIncome" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;住民税の計算時に、すべての人から無条件で差し引かれる控除額です。&#10;【目安】&#10;合計所得金額が2,400万円以下の場合は 430,000円 で固定です。">住民税基礎控除 (円)</label><input type="number" id="set-basicDeductionResident" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;配偶者控除や、その他の扶養親族がいる場合に、所得税の計算から「1人につき」差し引かれる金額です。&#10;【目安】&#10;一般的な配偶者控除・一般扶養控除の金額である 380,000円 を設定しています。">所得税扶養控除 (円)</label><input type="number" id="set-depDeductionIncome" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;配偶者控除や、その他の扶養親族がいる場合に、住民税の計算から「1人につき」差し引かれる金額です。&#10;【目安】&#10;一般的な配偶者控除・一般扶養控除の金額である 330,000円 を設定しています。">住民税扶養控除 (円)</label><input type="number" id="set-depDeductionResident" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;「単身者」の場合に、住民税が非課税になるかどうかの判定ライン（所得金額）です。&#10;【自治体による目安】&#10;・1級地：450,000円&#10;・2級地：415,000円&#10;・3級地：380,000円">非課税目安 単身(円)</label><input type="number" id="set-taxFreeLimit" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;「扶養がいる」場合の非課税ライン計算式（〇円×世帯人数＋加算額）のうち、「〇円」にあたるベース金額です。&#10;【自治体による目安】&#10;・1級地：350,000円&#10;・2級地：315,000円&#10;・3級地：280,000円">非課税係数 扶養ベース(円)</label><input type="number" id="set-taxFreeBase" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;「扶養がいる」場合の非課税ライン計算式の最後に足す「加算額」です。&#10;【自治体による目安】&#10;・1級地：310,000円&#10;・2級地：289,000円&#10;・3級地：268,000円">非課税係数 扶養加算(円)</label><input type="number" id="set-taxFreeAdd" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;国民健康保険料の「均等割（加入者全員にかかる定額部分）」の年額です。&#10;※非課税等による法定軽減（7割・5割・2割軽減）は内部で自動計算されます。&#10;【目安】&#10;自治体により異なりますが、年間 40,000円〜60,000円 程度です。">国保均等割 (円/人)</label><input type="number" id="set-insuranceFlat" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;国民健康保険料の「所得割（前年所得に応じてかかる部分）」の税率です。&#10;【目安】&#10;医療分・支援分・介護分の合計で 10.0%〜13.0% 程度になります。">国保所得割率 (%)</label><input type="number" id="set-insuranceRate" step="0.1" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-slate-600 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;65歳以上になると全員が個別に支払う「介護保険料」の年額（基準額）です。&#10;※本人や世帯が非課税の場合は、自動的に安く（約0.7倍）計算されます。&#10;【目安】&#10;全国平均で年間 75,000円 程度です。">介護保険料 (円/人)</label><input type="number" id="set-nursingFee" class="w-full px-2.5 py-1.5 border rounded"></div>
+                            <div><label class="block text-xs font-semibold text-indigo-700 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;75歳以上から加入する「後期高齢者医療制度」の均等割（定額部分）の年額です。&#10;【目安】&#10;都道府県により異なりますが、年間 45,000円〜55,000円 程度です。">後期高齢均等割(円)</label><input type="number" id="set-lateElderlyFlat" class="w-full px-2.5 py-1.5 border border-indigo-300 bg-indigo-50 rounded"></div>
+                            <div><label class="block text-xs font-semibold text-indigo-700 mb-1 tooltip-label" data-tooltip="【計算用途】&#10;75歳以上の「後期高齢者医療制度」の所得割（前年所得に応じてかかる部分）の税率です。&#10;【目安】&#10;都道府県により異なりますが、9.0%〜11.0% 程度です。">後期高齢所得割(%)</label><input type="number" id="set-lateElderlyRate" step="0.1" class="w-full px-2.5 py-1.5 border border-indigo-300 bg-indigo-50 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 年金 -->
+                <div id="content-pension" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8 hidden">
+                    <div>
+                        <div class="border-b pb-3 mb-4"><h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><span class="w-1 h-5 bg-blue-700 rounded-full"></span> 年金見込み額の設定</h2></div>
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <div><label class="block text-sm font-semibold text-slate-700 mb-1">本人の年金 (円/年)</label><input type="number" id="pension-user65Amount" class="w-full px-3 py-2 border rounded-lg font-bold text-blue-800"></div>
+                                <div class="spouse-field"><label class="block text-sm font-semibold text-slate-700 mb-1">配偶者の年金 (円/年)</label><input type="number" id="pension-spouse65Amount" class="w-full px-3 py-2 border rounded-lg font-bold"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 mb-1">加給年金額 (円/年)</label><input type="number" id="pension-kakuAmount" class="w-full px-3 py-2 border rounded-lg"></div>
+                                <div class="border-t pt-3"><label class="block text-sm font-semibold text-slate-700 mb-1">厚生年金基金 (円/年)</label><input type="number" id="pension-kikinAmount" class="w-full px-3 py-2 border rounded-lg text-emerald-800 font-bold"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 mb-1">基金開始年齢 (歳)</label><input type="number" id="pension-kikinStartAge" class="w-full px-3 py-2 border rounded-lg"></div>
+                            </div>
+                            <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 space-y-3.5">
+                                <h3 class="font-bold text-sm text-blue-950 border-b border-blue-200 pb-1.5 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4 text-blue-700"></i> 加給年金判定</h3>
+                                <div class="space-y-3 text-xs">
+                                    <div class="flex items-center justify-between"><span>判定を使用する</span><select id="pension-useKaku" class="px-2 py-1 border rounded bg-white"><option value="はい">はい</option><option value="いいえ">いいえ</option></select></div>
+                                    <div class="flex items-center justify-between"><span>本人厚生年金20年以上</span><select id="pension-userKosei20" class="px-2 py-1 border rounded bg-white"><option value="いいえ">いいえ</option><option value="はい">はい</option></select></div>
+                                    <div class="flex items-center justify-between"><span>配偶者65歳未満を対象</span><select id="pension-assumeUnder65" class="px-2 py-1 border rounded bg-white"><option value="はい">はい</option><option value="いいえ">いいえ</option></select></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-sm text-slate-800 mb-3">シミュレーション受給3パターン（自動計算）</h3>
+                            <div class="grid grid-cols-3 gap-4 text-xs">
+                                <div class="bg-white p-3 rounded-lg border flex flex-col justify-between">
+                                    <div>
+                                        <span class="font-bold text-amber-700 block mb-1.5">パターンA (繰上)</span>
+                                        <div class="flex items-center gap-1.5"><input type="number" id="pension-a-year" class="w-14 px-1.5 py-1 border rounded text-right bg-slate-50"> 歳 <input type="number" id="pension-a-month" class="w-10 px-1.5 py-1 border rounded text-right bg-slate-50" min="0" max="11"> ヶ月</div>
+                                    </div>
+                                    <div class="mt-3 pt-2 border-t flex justify-between items-center"><span class="text-slate-500">自動倍率:</span><span id="rate-a-auto" class="font-bold text-slate-800 text-sm"></span></div>
+                                    <div class="mt-2 flex items-center justify-between gap-2"><span class="text-slate-400">手動上書:</span><input type="number" id="rate-a-manual" step="0.001" class="w-16 px-1.5 py-0.5 border rounded text-right"></div>
+                                    <div class="mt-2 pt-2 border-t flex justify-between items-center bg-amber-50 px-2 py-1.5 rounded"><span class="text-amber-800 font-semibold text-xs">本人額:</span><span id="pension-a-amount" class="font-bold text-amber-900"></span></div>
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border flex flex-col justify-between">
+                                    <div>
+                                        <span class="font-bold text-blue-700 block mb-1.5">パターンB (通常)</span>
+                                        <div class="flex items-center gap-1.5"><input type="number" id="pension-b-year" class="w-14 px-1.5 py-1 border rounded text-right bg-slate-50"> 歳 <input type="number" id="pension-b-month" class="w-10 px-1.5 py-1 border rounded text-right bg-slate-50" min="0" max="11"> ヶ月</div>
+                                    </div>
+                                    <div class="mt-3 pt-2 border-t flex justify-between items-center"><span class="text-slate-500">自動倍率:</span><span id="rate-b-auto" class="font-bold text-slate-800 text-sm"></span></div>
+                                    <div class="mt-2 flex items-center justify-between gap-2"><span class="text-slate-400">手動上書:</span><input type="number" id="rate-b-manual" step="0.001" class="w-16 px-1.5 py-0.5 border rounded text-right"></div>
+                                    <div class="mt-2 pt-2 border-t flex justify-between items-center bg-blue-50 px-2 py-1.5 rounded"><span class="text-blue-800 font-semibold text-xs">本人額:</span><span id="pension-b-amount" class="font-bold text-blue-900"></span></div>
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border flex flex-col justify-between">
+                                    <div>
+                                        <span class="font-bold text-emerald-700 block mb-1.5">パターンC (繰下)</span>
+                                        <div class="flex items-center gap-1.5"><input type="number" id="pension-c-year" class="w-14 px-1.5 py-1 border rounded text-right bg-slate-50"> 歳 <input type="number" id="pension-c-month" class="w-10 px-1.5 py-1 border rounded text-right bg-slate-50" min="0" max="11"> ヶ月</div>
+                                    </div>
+                                    <div class="mt-3 pt-2 border-t flex justify-between items-center"><span class="text-slate-500">自動倍率:</span><span id="rate-c-auto" class="font-bold text-slate-800 text-sm"></span></div>
+                                    <div class="mt-2 flex items-center justify-between gap-2"><span class="text-slate-400">手動上書:</span><input type="number" id="rate-c-manual" step="0.001" class="w-16 px-1.5 py-0.5 border rounded text-right"></div>
+                                    <div class="mt-2 pt-2 border-t flex justify-between items-center bg-emerald-50 px-2 py-1.5 rounded"><span class="text-emerald-800 font-semibold text-xs">本人額:</span><span id="pension-c-amount" class="font-bold text-emerald-900"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 継続収支入力 -->
+                <div id="content-income-expense" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8 hidden">
+                    <!-- 収入 -->
+                    <div>
+                        <div class="flex items-center justify-between border-b pb-3 mb-4">
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><span class="w-1 h-5 bg-emerald-600 rounded-full"></span> 1. 継続的な収入</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-sm min-w-[900px]">
+                                <thead>
+                                    <tr class="border-b bg-slate-50 text-slate-600">
+                                        <th class="py-2 px-3 w-48">収入項目</th>
+                                        <th class="py-2 px-3 w-32">月額(額面・円)</th>
+                                        <th class="py-2 px-3 w-32 text-right">年額 (円)</th>
+                                        <th class="py-2 px-3 w-20 text-center">開始</th>
+                                        <th class="py-2 px-3 w-20 text-center">終了</th>
+                                        <th class="py-2 px-3 w-24 text-center">税対象</th>
+                                        <th class="py-2 px-3">メモ</th>
+                                        <th class="py-2 px-3 w-12 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="income-table-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button onclick="addIncomeItem()" class="flex items-center gap-1.5 px-4 py-2 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg"><i data-lucide="plus" class="w-4 h-4"></i> 追加</button>
+                        </div>
+                    </div>
+
+                    <!-- 保険 -->
+                    <div>
+                        <div class="flex items-center justify-between border-b pb-3 mb-4">
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><span class="w-1 h-5 bg-blue-500 rounded-full"></span> 2. 民間保険料の設定</h2>
+                            <div class="flex items-center gap-4 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                                <label class="inline-flex items-center cursor-pointer text-sm font-bold text-blue-900"><input type="radio" name="ins-mode" value="一括" onchange="toggleInsuranceMode(this.value)" class="w-4 h-4 mr-1"> 一括入力</label>
+                                <label class="inline-flex items-center cursor-pointer text-sm font-bold text-blue-900"><input type="radio" name="ins-mode" value="細分化" onchange="toggleInsuranceMode(this.value)" class="w-4 h-4 mr-1"> 細分化入力</label>
+                            </div>
+                        </div>
+                        <div id="ins-bulk-container" class="overflow-x-auto mb-2">
+                            <table class="w-full text-left border-collapse text-sm min-w-[900px]">
+                                <thead><tr class="border-b bg-slate-50 text-slate-600"><th class="py-2 px-3 w-40">保険名称</th><th class="py-2 px-3 w-28 text-center">支払方法</th><th class="py-2 px-3 w-32 text-right">金額(円)</th><th class="py-2 px-3 w-32 text-right">年額(円)</th><th class="py-2 px-3 w-20 text-center">開始</th><th class="py-2 px-3 w-20 text-center">終了</th><th class="py-2 px-3">メモ</th><th class="py-2 px-3 w-12"></th></tr></thead>
+                                <tbody id="ins-bulk-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div id="ins-details-container" class="hidden">
+                            <div class="overflow-x-auto mb-2">
+                                <table class="w-full text-left border-collapse text-sm min-w-[900px]">
+                                    <thead><tr class="border-b bg-slate-50 text-slate-600"><th class="py-2 px-3 w-40">保険項目</th><th class="py-2 px-3 w-28 text-center">支払方法</th><th class="py-2 px-3 w-32 text-right">金額(円)</th><th class="py-2 px-3 w-32 text-right">年額(円)</th><th class="py-2 px-3 w-20 text-center">開始</th><th class="py-2 px-3 w-20 text-center">終了</th><th class="py-2 px-3">メモ</th><th class="py-2 px-3 w-12 text-center">操作</th></tr></thead>
+                                    <tbody id="ins-details-body" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3 flex justify-end">
+                                <button onclick="addInsuranceItem()" class="flex items-center gap-1.5 px-4 py-2 bg-blue-100 text-blue-800 text-xs font-bold rounded-lg"><i data-lucide="plus" class="w-4 h-4"></i> 追加</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 支出 -->
+                    <div>
+                        <div class="flex items-center justify-between border-b pb-3 mb-4">
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><span class="w-1 h-5 bg-rose-600 rounded-full"></span> 3. 継続的な支出 (生活費など)</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-sm min-w-[900px]">
+                                <thead>
+                                    <tr class="border-b bg-slate-50 text-slate-600">
+                                        <th class="py-2 px-3 w-48">支出項目</th>
+                                        <th class="py-2 px-3 w-32">月額 (円)</th>
+                                        <th class="py-2 px-3 w-32 text-right">年額 (円)</th>
+                                        <th class="py-2 px-3 w-20 text-center">開始</th>
+                                        <th class="py-2 px-3 w-20 text-center">終了</th>
+                                        <th class="py-2 px-3 w-24">分類</th>
+                                        <th class="py-2 px-3">メモ</th>
+                                        <th class="py-2 px-3 w-12 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expense-table-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button onclick="addExpenseItem()" class="flex items-center gap-1.5 px-4 py-2 bg-rose-100 text-rose-800 text-xs font-bold rounded-lg"><i data-lucide="plus" class="w-4 h-4"></i> 追加</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 一時収支 -->
+                <div id="content-temp" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8 hidden">
+                    <div>
+                        <div class="border-b pb-3 mb-4"><h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><span class="w-1 h-5 bg-amber-500 rounded-full"></span> 一時的な収支 (退職金・失業給付・修繕など)</h2></div>
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                                <h3 class="font-bold text-amber-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4"></i> 一時収入項目</h3>
+                                <div class="overflow-x-auto"><table class="w-full text-left text-xs whitespace-nowrap"><thead><tr class="border-b text-amber-800 font-bold"><th class="py-1">項目名</th><th class="py-1 w-24 text-right">単価/月額(円)</th><th class="py-1 w-16 text-center">回数/月数</th><th class="py-1 w-24 text-right">総額(円)</th><th class="py-1 w-14 text-center">年齢</th><th class="py-1 w-8 text-center">操</th></tr></thead><tbody id="temp-income-body"></tbody></table></div>
+                                <div class="mt-2 flex justify-end"><button onclick="addTempIncomeItem()" class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded border border-amber-300">追加</button></div>
+                            </div>
+                            <div class="bg-red-50/50 p-4 rounded-xl border border-red-100">
+                                <h3 class="font-bold text-red-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="minus-circle" class="w-4 h-4"></i> 一時支出項目</h3>
+                                <div class="overflow-x-auto"><table class="w-full text-left text-xs whitespace-nowrap"><thead><tr class="border-b text-red-800 font-bold"><th class="py-1">項目名</th><th class="py-1 w-24 text-right">単価/月額(円)</th><th class="py-1 w-16 text-center">回数/月数</th><th class="py-1 w-24 text-right">総額(円)</th><th class="py-1 w-14 text-center">年齢</th><th class="py-1 w-8 text-center">操</th></tr></thead><tbody id="temp-expense-body"></tbody></table></div>
+                                <div class="mt-2 flex justify-end"><button onclick="addTempExpenseItem()" class="px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded border border-red-300">追加</button></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 結果 -->
+                <div id="content-results" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8 hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-3 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <div class="text-xs text-blue-900"><h4 class="font-bold flex items-center gap-1.5 text-sm mb-1"><i data-lucide="printer" class="w-4 h-4"></i> レポート印刷</h4><p>結果をA4用紙やPDF形式で綺麗に出力できます。※印刷時は全パターンが出力されます。</p></div>
+                        <button onclick="triggerPrintReport()" class="flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-md transition-all"><i data-lucide="printer" class="w-4 h-4"></i> 印刷する</button>
+                    </div>
+
+                    <!-- パターン選択チェックボックス -->
+                    <div class="flex flex-wrap items-center gap-3 mb-2 bg-white p-3 rounded-lg border shadow-sm">
+                        <span class="text-sm font-bold text-slate-700"><i data-lucide="eye" class="w-4 h-4 inline-block mr-1"></i>表示パターン:</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-amber-700 bg-amber-50 px-3 py-1.5 rounded border border-amber-200 hover:bg-amber-100 transition-colors">
+                            <input type="checkbox" id="check-pat-a" checked onchange="updatePatternDisplay()" class="w-4 h-4 accent-amber-600"> パターンA (繰上)
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-100 transition-colors">
+                            <input type="checkbox" id="check-pat-b" checked onchange="updatePatternDisplay()" class="w-4 h-4 accent-blue-600"> パターンB (通常)
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                            <input type="checkbox" id="check-pat-c" checked onchange="updatePatternDisplay()" class="w-4 h-4 accent-emerald-600"> パターンC (繰下)
+                        </label>
+                    </div>
+
+                    <div>
+                        <div class="border-b pb-2 mb-3"><h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><span class="w-1 h-5 bg-blue-600 rounded-full"></span> 受給パターンの結果サマリー</h2></div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm border-collapse">
+                                <thead><tr class="border-b bg-slate-50 text-slate-600 font-semibold"><th class="py-2 px-3">パターン</th><th class="py-2 px-3">開始</th><th class="py-2 px-3 text-center">倍率</th><th class="py-2 px-3 text-right">65歳残高</th><th class="py-2 px-3 text-right">70歳残高</th><th class="py-2 px-3 text-right">75歳残高</th><th class="py-2 px-3 text-right">80歳残高</th><th class="py-2 px-3 text-center">目標割れ</th><th class="py-2 px-3 text-center">判定</th></tr></thead>
+                                <tbody id="compare-summary-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <h3 class="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2"><i data-lucide="line-chart" class="text-blue-600 w-4 h-4"></i> 貯蓄残高の推移グラフ</h3>
+                        <div class="w-full h-[320px] bg-white p-2 rounded-lg border"><canvas id="savingsChart"></canvas></div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between border-b pb-2 mb-3">
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i data-lucide="table" class="w-5 h-5 text-indigo-600"></i> 年齢別詳細推移表</h2>
+                            <button onclick="exportToCSV()" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded shadow transition-all"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> CSV出力</button>
+                        </div>
+                        <div class="overflow-x-auto max-h-[600px] border rounded-lg">
+                            <table class="w-full text-[11px] text-left border-collapse relative min-w-[1100px]">
+                                <thead class="sticky top-0 bg-slate-100 text-slate-700 shadow-sm z-10">
+                                    <tr>
+                                        <th class="py-2 px-1.5 border-b border-r" rowspan="2">年齢<br><span class="text-[9px] text-slate-400">(配)</span></th>
+                                        <th class="py-2 px-1.5 border-b border-r text-center" colspan="2">基礎データ</th>
+                                        <th class="py-2 px-1.5 border-b border-r text-center bg-blue-50/50 cursor-help" colspan="3" id="th-group-pension" title="タップまたはホバーで内訳を表示">年金 (世帯計)<span class="text-[8px] text-blue-500 block font-bold">※タップで内訳</span></th>
+                                        <th class="py-2 px-1.5 border-b border-r text-center bg-amber-50/40 cursor-help" colspan="9" id="th-group-tax" title="タップまたはホバーで計算式を表示">税金・社会保険料 (本人のみ課税)<span class="text-[8px] text-amber-600 block font-bold">※タップで計算式</span></th>
+                                        <th class="py-2 px-1.5 border-b border-r text-center bg-emerald-50/40 pat-a" colspan="3">パターンA</th>
+                                        <th class="py-2 px-1.5 border-b border-r text-center bg-blue-50/40 pat-b" colspan="3">パターンB</th>
+                                        <th class="py-2 px-1.5 border-b text-center bg-indigo-50/40 pat-c" colspan="3">パターンC</th>
+                                    </tr>
+                                    <tr class="bg-slate-50 text-[9px]">
+                                        <th class="p-1 border-b border-r">総収入</th><th class="p-1 border-b border-r text-rose-600">総支出</th>
+                                        <th class="p-1 border-b border-r bg-blue-50/30 pat-a" id="th-pension-a">年金A</th><th class="p-1 border-b border-r bg-blue-50/30 pat-b" id="th-pension-b">年金B</th><th class="p-1 border-b border-r bg-blue-50/30 pat-c" id="th-pension-c">年金C</th>
+                                        <th class="p-1 border-b border-r bg-amber-50/30 pat-a">所税A</th><th class="p-1 border-b border-r bg-amber-50/30 pat-a">住税A</th><th class="p-1 border-b border-r bg-amber-50/30 pat-a">社保A</th>
+                                        <th class="p-1 border-b border-r bg-amber-50/30 pat-b">所税B</th><th class="p-1 border-b border-r bg-amber-50/30 pat-b">住税B</th><th class="p-1 border-b border-r bg-amber-50/30 pat-b">社保B</th>
+                                        <th class="p-1 border-b border-r bg-amber-50/30 pat-c">所税C</th><th class="p-1 border-b border-r bg-amber-50/30 pat-c">住税C</th><th class="p-1 border-b border-r bg-amber-50/30 pat-c">社保C</th>
+                                        <th class="p-1 border-b border-r bg-emerald-50/30 pat-a">収支</th><th class="p-1 border-b border-r bg-emerald-100/40 font-semibold text-[10px] pat-a">貯蓄</th><th class="p-1 border-b border-r bg-emerald-50/30 pat-a">判定</th>
+                                        <th class="p-1 border-b border-r bg-blue-50/30 pat-b">収支</th><th class="p-1 border-b border-r bg-blue-100/40 font-semibold text-[10px] pat-b">貯蓄</th><th class="p-1 border-b border-r bg-blue-50/30 pat-b">判定</th>
+                                        <th class="p-1 border-b border-r bg-indigo-50/30 pat-c">収支</th><th class="p-1 border-b border-r bg-indigo-100/40 font-semibold text-[10px] pat-c">貯蓄</th><th class="p-1 border-b bg-indigo-50/30 pat-c">判定</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detail-table-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="content-todo" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8 hidden">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><span class="w-1 h-5 bg-indigo-600 rounded-full"></span> 59歳〜66歳 やることリスト</h2>
+                    </div>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <div class="grid grid-cols-12 bg-slate-100 py-3 px-4 font-bold text-slate-700 text-sm border-b">
+                            <div class="col-span-1 text-center">進捗</div><div class="col-span-2 text-center">時期</div><div class="col-span-6">やること内容</div><div class="col-span-3">確認先</div>
+                        </div>
+                        <div class="divide-y divide-slate-200" id="todo-list-container"></div>
+                    </div>
+                </div>
+
+                <!-- 制度と計算式 (新設タブ) -->
+                <div id="content-knowledge" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-8 hidden">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+                            <span class="w-1 h-5 bg-teal-600 rounded-full"></span> 重要な制度と計算の仕組み
+                        </h2>
+                        <p class="text-xs text-slate-500">このシミュレーターが内部でどのように計算しているか、そして入力項目のどこが結果に影響するのかを解説します。</p>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-teal-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="info" class="w-5 h-5 text-teal-600"></i> 1. 住民税非課税世帯の判定（自治体によって異なります）</h3>
+                            <p class="text-xs text-slate-700 leading-relaxed mb-3">住民税が非課税になると、介護保険料や高額療養費の上限が大きく下がるため、老後の手取りに極めて大きな影響を与えます。しかし、<strong>非課税になる所得の限度額はお住まいの市区町村（1級地〜3級地）によって異なります</strong>。</p>
+                            <div class="bg-white p-4 rounded border border-slate-200 text-xs text-slate-600 space-y-3">
+                                <p class="font-bold text-slate-800 border-b pb-1">【当アプリの非課税判定ライン（所得金額）の計算式】</p>
+                                <ul class="list-disc pl-5 space-y-2">
+                                    <li>
+                                        <strong>単身者の場合：</strong><br>
+                                        計算式： <code class="bg-slate-100 px-1 text-rose-600 rounded">設定した金額をそのまま適用</code><br>
+                                        <span class="text-slate-500">▶ どこで設定する？： 「基本情報＆設定」タブ ＞ 画面下部の「詳細設定」アコーディオン ＞ <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">非課税目安 単身(円)</span><br>
+                                        <strong class="text-slate-700">💡 自治体の「級地」による入力額の目安：</strong><br>
+                                        ・1級地： <strong class="text-teal-700">450,000</strong> / 2級地： <strong class="text-teal-700">415,000</strong> / 3級地： <strong class="text-teal-700">380,000</strong>
+                                        </span>
+                                    </li>
+                                    <li>
+                                        <strong>扶養家族がいる場合：</strong><br>
+                                        計算式： <code class="bg-slate-100 px-1 text-rose-600 rounded">設定したベース金額 × 世帯人数 ＋ 加算金額</code><br>
+                                        <span class="text-slate-500">▶ どこで設定する？： 「基本情報＆設定」タブ ＞ 画面下部の「詳細設定」アコーディオン ＞ <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">非課税係数 扶養ベース(円)</span> および <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">非課税係数 扶養加算(円)</span><br>
+                                        <strong class="text-slate-700">💡 自治体の「級地」による入力額の目安：</strong><br>
+                                        ・1級地： ベース <strong class="text-teal-700">350,000</strong> / 加算 <strong class="text-teal-700">310,000</strong><br>
+                                        ・2級地： ベース <strong class="text-teal-700">315,000</strong> / 加算 <strong class="text-teal-700">289,000</strong><br>
+                                        ・3級地： ベース <strong class="text-teal-700">280,000</strong> / 加算 <strong class="text-teal-700">268,000</strong>
+                                        </span>
+                                    </li>
+                                </ul>
+                                
+                                <div class="bg-indigo-50 p-3 rounded-md mt-2">
+                                    <p class="font-bold text-indigo-800 mb-1">【収入と「所得」の違いにご注意ください！】</p>
+                                    <p class="text-indigo-900">非課税ラインの判定に使われるのは「収入（額面）」ではなく<strong>「所得」</strong>です。<br>
+                                    年金収入から「公的年金等控除額（65歳以上なら110万円など）」を引いた残りの額が、上記の非課税ラインを下回っていれば非課税となります。<br>
+                                    <span class="font-semibold mt-1 inline-block">例：単身・65歳以上で、非課税ラインを45万円に設定した場合</span><br>
+                                    年金収入155万円 － 公的年金等控除110万円 ＝ <strong class="text-rose-600">所得45万円 ➔ 非課税！</strong></p>
+                                </div>
+                                <p class="text-rose-600 font-semibold pt-1">※重要：お住まいの自治体HPで「住民税 非課税 限度額」を検索し、ご自身の自治体の基準（1〜3級地など）に合わせて上記の「詳細設定」金額を変更してください。</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-teal-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="clock" class="w-5 h-5 text-teal-600"></i> 2. 税金・社会保険料の「時間差」の罠</h3>
+                            <p class="text-xs text-slate-700 leading-relaxed mb-3">退職した翌年に「税金や保険料が高すぎて生活が苦しい」となるのは、計算の基準となる年のズレが原因です。</p>
+                            <div class="bg-white p-4 rounded border border-slate-200 text-xs text-slate-600 space-y-3">
+                                <ul class="list-disc pl-5 space-y-1.5">
+                                    <li><strong>所得税：</strong> <span class="text-blue-600 font-bold">「今年の収入」</span>に対してかかります。</li>
+                                    <li><strong>住民税・国民健康保険・後期高齢者医療：</strong> すべて<span class="text-rose-600 font-bold">「前年の収入（所得）」</span>に対してかかります。</li>
+                                </ul>
+                                <div class="mt-2 pt-2 border-t border-slate-100">
+                                    <p class="font-bold text-slate-800 mb-1">【当アプリの計算への影響と入力箇所】</p>
+                                    <p class="text-slate-600">退職した翌年（年金収入しかない年など）の住民税と保険料を高く跳ね上げる要因は、<strong>「退職した年の給与収入」</strong>です。<br>
+                                    <span class="text-slate-500 mt-1 inline-block">▶ どこで設定する？： 「継続収支入力」タブ ＞ 1.継続的な収入 ＞ <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">退職前給与（または退職した年の給与）</span> の金額と終了年齢です。ここを正確に入力することで、退職翌年のリアルな税負担をシミュレーションできます。</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-teal-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="users" class="w-5 h-5 text-teal-600"></i> 3. 加給年金（家族手当）の支給条件</h3>
+                            <p class="text-xs text-slate-700 leading-relaxed mb-3">加給年金は老後の大きな収入源（年間約40万円）ですが、もらえる期間が決まっています。</p>
+                            <div class="bg-white p-4 rounded border border-slate-200 text-xs text-slate-600 space-y-3">
+                                <p class="font-bold text-slate-800">【当アプリの計算ロジックと影響する入力項目】</p>
+                                <p>以下の条件をすべて満たす期間のみ、自動的に年金額に加算されます。</p>
+                                <ol class="list-decimal pl-5 space-y-2 mt-1">
+                                    <li>
+                                        <strong>加給年金の設定が有効か：</strong><br>
+                                        <span class="text-slate-500">▶ どこで設定する？：「年金」タブ ＞ <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">判定を使用する</span> が「はい」であること。</span>
+                                    </li>
+                                    <li>
+                                        <strong>本人の厚生年金加入期間が20年以上あるか：</strong><br>
+                                        <span class="text-slate-500">▶ どこで設定する？：「年金」タブ ＞ <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">本人厚生年金20年以上</span> が「はい」であること。</span>
+                                    </li>
+                                    <li>
+                                        <strong>本人が「65歳以上」かつ「年金を受給開始」しているか：</strong><br>
+                                        （※繰り上げ受給して60歳から年金をもらっていても、加給年金は65歳になるまでつきません）
+                                    </li>
+                                    <li>
+                                        <strong>配偶者の年齢が「65歳未満」であるか：</strong><br>
+                                        <span class="text-slate-500">▶ どこで設定する？：「基本情報＆設定」タブ ＞ 世帯・配偶者詳細の <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">配偶者年齢</span> が影響します。配偶者が65歳になると加給年金は自動で打ち切られます。</span>
+                                    </li>
+                                </ol>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-teal-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="calculator" class="w-5 h-5 text-teal-600"></i> 4. 公的年金等控除の自動計算（速算表）</h3>
+                            <p class="text-xs text-slate-700 leading-relaxed mb-3">年金収入にはそのまま税金がかかるわけではなく、「公的年金等控除」という必要経費のようなものが差し引かれます。本アプリでは、国税庁の速算表に基づく<strong>段階的な控除額を完全自動計算</strong>しています。</p>
+                            <div class="bg-white p-4 rounded border border-slate-200 text-xs text-slate-600 space-y-3">
+                                <p class="font-bold text-slate-800 border-b pb-1">【当アプリの控除計算ロジック（令和2年分以降対応）】</p>
+                                <p>年齢と年金収入額に応じて、以下の通り自動で控除額を算出・適用します。（※公的年金等以外の所得が1,000万円以下の場合の概算）</p>
+                                <div class="grid grid-cols-2 gap-4 mt-2">
+                                    <div class="bg-slate-50 p-3 rounded border border-slate-100">
+                                        <p class="font-bold text-indigo-700 mb-2">▼ 65歳以上の場合</p>
+                                        <ul class="space-y-1">
+                                            <li>・330万円以下: <strong class="text-slate-800">110万円</strong> (一律)</li>
+                                            <li>・330万超〜410万円: 収入×25%＋27.5万円</li>
+                                            <li>・410万超〜770万円: 収入×15%＋68.5万円</li>
+                                        </ul>
+                                    </div>
+                                    <div class="bg-slate-50 p-3 rounded border border-slate-100">
+                                        <p class="font-bold text-emerald-700 mb-2">▼ 65歳未満の場合</p>
+                                        <ul class="space-y-1">
+                                            <li>・130万円以下: <strong class="text-slate-800">60万円</strong> (一律)</li>
+                                            <li>・130万超〜410万円: 収入×25%＋27.5万円</li>
+                                            <li>・410万超〜770万円: 収入×15%＋68.5万円</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <p class="mt-2 text-slate-500">▶ どこで確認できる？：詳細な控除額は、「推移・印刷」タブの「年齢別詳細推移表」で、<span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">所得税</span> や <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">住民税</span> の金額をタップ（ホバー）すると表示される内訳の「年金所得」から、控除後の金額が確認できます。</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 class="font-bold text-teal-900 text-sm mb-3 flex items-center gap-1.5"><i data-lucide="calculator" class="w-5 h-5 text-teal-600"></i> 5. 国民健康保険料の計算方法（74歳まで）</h3>
+                            <p class="text-xs text-slate-700 leading-relaxed mb-3">退職後の大きな負担となる国民健康保険料は、「前年の所得」をベースに計算されます。本アプリでは実際の制度に近い形で以下の計算を行っています。</p>
+                            <div class="bg-white p-4 rounded border border-slate-200 text-xs text-slate-600 space-y-3">
+                                <p class="font-bold text-slate-800 border-b pb-1">【当アプリの国保料 計算ロジック】</p>
+                                <ul class="list-disc pl-5 space-y-2">
+                                    <li><strong>①所得割（前年の所得に応じてかかる部分）：</strong><br>
+                                    （前年の合計所得 － 住民税基礎控除等の所得控除） × <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">国保所得割率 (%)</span></li>
+                                    <li><strong>②均等割（加入者全員にかかる定額部分）：</strong><br>
+                                    加入人数（本人＋75歳未満の配偶者＋扶養人数） × <span class="bg-amber-100 px-1 rounded font-semibold text-amber-900">国保均等割 (円/人・年)</span></li>
+                                    <li><strong>③法定軽減（自動適用）：</strong><br>
+                                    前年の所得が一定基準を下回る場合、均等割部分が自動的に「7割・5割・2割軽減」されるロジックを搭載しています。</li>
+                                </ul>
+                                <p class="mt-2 text-slate-500">▶ どこで設定する？：「基本情報＆設定」タブの下部、「詳細設定」内に国保の税率などの入力項目があります。お住まいの自治体のHPで確認し、数値を変更してください。</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="max-w-[1600px] w-full mx-auto px-4 pb-8 no-print">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-xs text-slate-500 leading-relaxed">
+            <p class="font-semibold text-slate-700 mb-1">退職後のお金シミュレーター v0.5｜GitHub Pages公開版｜参考用・個人利用限定</p>
+            <p>本ツールは退職後のお金の流れを整理するための参考用シミュレーターです。スマホでも利用できますが、詳細表・保存・印刷・CSV出力はPC利用を推奨します。個別の年金額、税額、保険料、給付金等を確定・保証するものではありません。</p>
+            <p class="mt-1">Copyright © 著者. 公式ページへのリンク共有は可能です。無断転載・再配布・改変版公開・商品化利用を禁止します。家族内での相談や自分用バックアップは可能です。</p>
+        </div>
+    </footer>
+
+    <div id="print-area">
+        <div class="text-center border-b-2 border-blue-900 pb-4 mb-6">
+            <h1 class="text-2xl font-bold text-blue-900">退職後のお金シミュレーター v0.5 報告書</h1>
+            <p class="text-xs text-slate-500 mt-1" id="print-date-string">作成日: --</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs">
+            <div><p class="text-[10px] text-slate-500">■ プラン名</p><p class="text-base font-bold text-slate-800" id="print-title-planname"></p></div>
+            <div><p class="text-[10px] text-slate-500">■ 年齢期間</p><p class="text-base font-bold text-slate-800" id="print-info-age"></p></div>
+            <div class="mt-2"><p class="text-[10px] text-slate-500">■ 初期貯蓄残高</p><p class="text-base font-bold text-blue-700" id="print-info-savings"></p></div>
+            <div class="mt-2"><p class="text-[10px] text-slate-500">■ 世帯区分</p><p class="text-base font-bold text-slate-800" id="print-info-spouse"></p></div>
+        </div>
+        <div class="mb-6">
+            <h3 class="font-bold text-xs text-slate-800 mb-2 border-b pb-1">【1】受給パターンのシミュレーション結果比較</h3>
+            <table class="w-full text-left text-[10px] border-collapse border border-slate-300">
+                <thead><tr class="bg-slate-100 border-b border-slate-300 font-bold"><th class="p-2 border-r">パターン</th><th class="p-2 border-r text-center">開始</th><th class="p-2 border-r text-center">倍率</th><th class="p-2 border-r text-right">65歳残高</th><th class="p-2 border-r text-right">70歳残高</th><th class="p-2 border-r text-right">75歳残高</th><th class="p-2 border-r text-right">80歳残高</th><th class="p-2 border-r text-center">目標割れ</th><th class="p-2 text-center">判定</th></tr></thead>
+                <tbody id="print-compare-body"></tbody>
+            </table>
+        </div>
+        <div class="mb-6 break-inside-avoid">
+            <h3 class="font-bold text-xs text-slate-800 mb-2 border-b pb-1">【2】貯蓄残高の年齢別推移グラフ</h3>
+            <div class="w-full border border-slate-200 p-2 rounded bg-white flex justify-center"><img id="print-chart-image" alt="グラフ" class="max-w-full h-auto" style="max-height: 250px;"></div>
+        </div>
+        <div class="mb-6 break-inside-avoid">
+            <h3 class="font-bold text-xs text-rose-700 mb-2 border-b pb-1">【3】家計の危険サイン</h3>
+            <div class="grid grid-cols-1 gap-2 text-[10px]" id="print-danger-signs"></div>
+        </div>
+        <div class="page-break"></div>
+        <div class="mb-6 pt-4">
+            <h3 class="font-bold text-xs text-indigo-900 mb-2 border-b pb-1">【4】やることアクションプラン</h3>
+            <table class="w-full text-left text-[10px] border-collapse border border-slate-300">
+                <thead><tr class="bg-slate-100 font-bold border-b border-slate-300"><th class="p-2 w-16 text-center border-r">進捗</th><th class="p-2 w-24 text-center border-r">時期</th><th class="p-2 border-r">内容</th><th class="p-2 w-32 border-r">確認先</th></tr></thead>
+                <tbody id="print-todo-body"></tbody>
+            </table>
+        </div>
+        <div class="page-break"></div>
+        <div class="pt-4">
+            <h3 class="font-bold text-xs text-slate-800 mb-2 border-b pb-1">【付録】詳細年表</h3>
+            <table class="w-full text-[9px] text-left border-collapse border border-slate-300">
+                <thead>
+                    <tr class="bg-slate-100 font-bold border-b border-slate-300 text-center"><th class="p-1 border-r">年齢</th><th class="p-1 border-r">収入</th><th class="p-1 border-r">支出</th><th class="p-1 border-r pat-a" id="print-th-pension-a">年A</th><th class="p-1 border-r pat-b" id="print-th-pension-b">年B</th><th class="p-1 border-r pat-c" id="print-th-pension-c">年C</th><th class="p-1 border-r bg-amber-50 pat-a">所税A</th><th class="p-1 border-r bg-amber-50 pat-a">住税A</th><th class="p-1 border-r bg-amber-50 pat-a">社保A</th><th class="p-1 border-r bg-amber-50 pat-b">所税B</th><th class="p-1 border-r bg-amber-50 pat-b">住税B</th><th class="p-1 border-r bg-amber-50 pat-b">社保B</th><th class="p-1 border-r bg-amber-50 pat-c">所税C</th><th class="p-1 border-r bg-amber-50 pat-c">住税C</th><th class="p-1 border-r bg-amber-50 pat-c">社保C</th><th class="p-1 border-r pat-a">A収支</th><th class="p-1 border-r pat-a font-bold bg-emerald-50">A貯蓄</th><th class="p-1 border-r pat-b">B収支</th><th class="p-1 border-r pat-b font-bold bg-blue-50">B貯蓄</th><th class="p-1 border-r pat-c">C収支</th><th class="p-1 pat-c font-bold bg-indigo-50">C貯蓄</th></tr>
+                </thead>
+                <tbody id="print-detail-body"></tbody>
+            </table>
+        </div>
+
+        <div class="mt-6 pt-3 border-t border-slate-300 text-[9px] text-slate-500 leading-relaxed">
+            <p>本報告書は参考用の概算結果です。計算前提・対象外ケースを確認したうえでご利用ください。年金額、税額、保険料、給付金等を確定・保証するものではありません。最終判断は公的窓口や専門家に確認してください。</p>
+            <p>Copyright © 著者. 本ツールおよび出力物の無断転載・再配布・改変版配布・第三者公開を禁止します。</p>
+        </div>
+    </div>
+
+    <!-- モーダル（スマホではタップ、PCではクリックで内訳を表示） -->
+    <div id="info-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-teal-800 flex items-center gap-2"><i data-lucide="info" class="w-5 h-5 text-teal-600"></i> 内訳・計算式</h3>
+            <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap font-medium" id="info-message"></p>
+            <div class="flex justify-end pt-2">
+                <button onclick="document.getElementById('info-modal').classList.add('hidden')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="save-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2"><i data-lucide="save" class="w-5 h-5 text-blue-600"></i> バックアップデータの保存</h3>
+            <div class="bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-3 text-xs flex gap-2.5 items-start">
+                <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+                <div>
+                    <span class="font-bold block">ファイルの保存先について</span>
+                    このデータはお使いの端末の標準の<strong class="text-blue-700 underline font-extrabold">「ダウンロード」フォルダ等</strong>に保存されます。スマホでは保存先が分かりにくい場合があるため、バックアップ保存・データ読込はPC利用を推奨します。
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 font-semibold">保存するファイル名を入力してください。</p>
+            <input type="text" id="save-filename" class="w-full px-3 py-2 border rounded-lg font-medium">
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeSaveModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-all">キャンセル</button>
+                <button onclick="executeExport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow transition-all">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2" id="confirm-title"><i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i> 確認</h3>
+            <p class="text-sm text-slate-600 leading-relaxed" id="confirm-message">実行しますか？</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfirmModal(false)" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">キャンセル</button>
+                <button onclick="closeConfirmModal(true)" id="confirm-ok-btn" class="px-4 py-2 bg-rose-600 text-white text-xs font-semibold rounded-lg">実行</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "retirement_simulator_data_v50"; 
+        let savingsChartInstance = null;
+        let confirmCallback = null;
+
+        const el = (id) => document.getElementById(id);
+        const val = (id, def=0) => parseFloat(el(id)?.value) || def;
+        const str = (id) => el(id)?.value || "";
+
+        const EMPTY_DATA = {
+            basic: { planName: "新規プラン", currentAge: 59, endAge: 80, currentSavings: 0, minTargetSavings: 3000000, currentInvestment: 0, investmentMonthlyAmount: 0, investmentReturnRate: 0.0, investmentEndAge: 65, retireAge: 60, householdType: "夫婦", spouseAge: 58, spousePensionStart: 65, isSpouseDependent: "はい", dependents: 0 },
+            settings: { inflationRate: 2.0, earlyReduction: 0.4, lateIncrease: 0.7, incomeTaxRate: 5.0, residentTaxRate: 10.0, residentTaxFlat: 6000, basicDeductionIncome: 480000, basicDeductionResident: 430000, depDeductionIncome: 380000, depDeductionResident: 330000, taxFreeLimit: 450000, taxFreeBase: 350000, taxFreeAdd: 310000, insuranceRate: 11.5, insuranceFlat: 65000, nursingFee: 80000, lateElderlyRate: 10.0, lateElderlyFlat: 50000 },
+            income: [ { id: "inc-1", name: "給与など", monthly: 0, annual: 0, startAge: 59, endAge: 65, taxInclude: true, memo: "" } ],
+            insurance: { mode: "一括", bulk: { name: "民間保険料(一括)", payType: "月払い", amount: 0, annual: 0, startAge: 59, endAge: 80, memo: "" }, details: [ { id: "ins-life", name: "生命保険", payType: "月払い", amount: 0, annual: 0, startAge: 59, endAge: 80, memo: "" } ] },
+            expense: [ { id: "exp-1", name: "生活費", monthly: 0, annual: 0, startAge: 59, endAge: 80, category: "変動費", memo: "" } ],
+            tempIncome: [ { id: "tinc-1", name: "退職金", price: 0, count: 1, amount: 0, age: 60, memo: "" }, { id: "tinc-2", name: "失業給付", price: 0, count: 1, amount: 0, age: 60, memo: "非課税" } ],
+            tempExpense: [ { id: "texp-1", name: "住宅修繕", price: 0, count: 1, amount: 0, age: 65, memo: "" } ],
+            pension: { user65Amount: 0, spouse65Amount: 0, kakuAmount: 410000, kikinAmount: 0, kikinStartAge: 60, useKaku: "はい", userKosei20: "はい", assumeUnder65: "はい", patternAYear: 60, patternAMonth: 0, patternBYear: 65, patternBMonth: 0, patternCYear: 70, patternCMonth: 0, rateAManual: "", rateBManual: "", rateCManual: "" },
+            todo: [ { id: "td-1", age: "59", task: "年金見込額の確認", target: "年金事務所", status: "未着手" } ]
+        };
+
+        const COUPLE_TEMPLATE = {
+            basic: { planName: "夫婦の標準プラン", currentAge: 59, endAge: 80, currentSavings: 15000000, minTargetSavings: 3000000, currentInvestment: 5000000, investmentMonthlyAmount: 50000, investmentReturnRate: 3.0, investmentEndAge: 65, retireAge: 60, householdType: "夫婦", spouseAge: 58, spousePensionStart: 65, isSpouseDependent: "はい", dependents: 0 },
+            settings: EMPTY_DATA.settings,
+            income: [
+                { id: "inc-1", name: "退職前給与", monthly: 350000, annual: 4200000, startAge: 59, endAge: 59, taxInclude: true, memo: "退職前" },
+                { id: "inc-2", name: "退職後給与", monthly: 150000, annual: 1800000, startAge: 60, endAge: 64, taxInclude: true, memo: "再雇用等" },
+                { id: "inc-3", name: "配偶者給与", monthly: 80000, annual: 960000, startAge: 59, endAge: 64, taxInclude: true, memo: "パート" },
+                { id: "inc-6", name: "個人年金", monthly: 50000, annual: 600000, startAge: 60, endAge: 69, taxInclude: true, memo: "10年確定" }
+            ],
+            insurance: { mode: "一括", bulk: { name: "民間保険料(一括)", payType: "月払い", amount: 10000, annual: 120000, startAge: 59, endAge: 80, memo: "医療・生命保険等" }, details: [ { id: "ins-1", name: "夫の生命保険", payType: "年払い", amount: 60000, annual: 60000, startAge: 59, endAge: 70, memo: "" }, { id: "ins-2", name: "妻の医療保険", payType: "月払い", amount: 3000, annual: 36000, startAge: 59, endAge: 80, memo: "" } ] },
+            expense: [
+                { id: "exp-1", name: "食費・外食", monthly: 75000, annual: 900000, startAge: 59, endAge: 80, category: "変動費", memo: "" },
+                { id: "exp-3", name: "水道光熱・通信", monthly: 32000, annual: 384000, startAge: 59, endAge: 80, category: "固定費", memo: "" },
+                { id: "exp-6", name: "住宅ローン", monthly: 50000, annual: 600000, startAge: 59, endAge: 64, category: "住居", memo: "65歳完済" },
+                { id: "exp-10", name: "趣味・交際・他", monthly: 80000, annual: 960000, startAge: 59, endAge: 80, category: "変動費", memo: "日用品・医療・車維持含む" },
+                { id: "exp-15", name: "固定資産税等(月割)", monthly: 10000, annual: 120000, startAge: 59, endAge: 80, category: "固定費", memo: "持ち家" }
+            ],
+            tempIncome: [
+                { id: "tinc-1", name: "退職金", price: 12000000, count: 1, amount: 12000000, age: 60, memo: "" },
+                { id: "tinc-2", name: "失業給付", price: 200000, count: 4, amount: 800000, age: 60, memo: "非課税" },
+                { id: "tinc-4", name: "車売却", price: 300000, count: 1, amount: 300000, age: 70, memo: "免許返納" }
+            ],
+            tempExpense: [
+                { id: "texp-1", name: "住宅修繕", price: 2000000, count: 1, amount: 2000000, age: 65, memo: "水回り等" },
+                { id: "texp-3", name: "車購入", price: 2500000, count: 1, amount: 2500000, age: 63, memo: "最後の買替" }
+            ],
+            pension: { user65Amount: 1800000, spouse65Amount: 780000, kakuAmount: 410000, kikinAmount: 0, kikinStartAge: 60, useKaku: "はい", userKosei20: "はい", assumeUnder65: "はい", patternAYear: 60, patternAMonth: 0, patternBYear: 65, patternBMonth: 0, patternCYear: 70, patternCMonth: 0, rateAManual: "", rateBManual: "", rateCManual: "" },
+            todo: EMPTY_DATA.todo
+        };
+
+        const SINGLE_TEMPLATE = {
+            basic: { planName: "単身シンプルプラン", currentAge: 59, endAge: 85, currentSavings: 8000000, minTargetSavings: 3000000, currentInvestment: 2000000, investmentMonthlyAmount: 30000, investmentReturnRate: 3.0, investmentEndAge: 65, retireAge: 60, householdType: "単身", spouseAge: 0, spousePensionStart: 65, isSpouseDependent: "いいえ", dependents: 0 },
+            settings: { ...EMPTY_DATA.settings, inflationRate: 1.5 },
+            income: [
+                { id: "inc-1", name: "退職前給与", monthly: 280000, annual: 3360000, startAge: 59, endAge: 59, taxInclude: true, memo: "" },
+                { id: "inc-2", name: "退職後給与", monthly: 120000, annual: 1440000, startAge: 60, endAge: 64, taxInclude: true, memo: "パート" }
+            ],
+            insurance: { mode: "一括", bulk: { name: "民間保険料(一括)", payType: "月払い", amount: 5000, annual: 60000, startAge: 59, endAge: 85, memo: "医療保険のみ" }, details: [] },
+            expense: [
+                { id: "exp-1", name: "食費・外食", monthly: 43000, annual: 516000, startAge: 59, endAge: 85, category: "変動費", memo: "" },
+                { id: "exp-3", name: "水道光熱・通信", monthly: 20000, annual: 240000, startAge: 59, endAge: 85, category: "固定費", memo: "" },
+                { id: "exp-5", name: "家賃・管理費", monthly: 55000, annual: 660000, startAge: 59, endAge: 85, category: "住居", memo: "賃貸" },
+                { id: "exp-10", name: "趣味・交際・他", monthly: 48000, annual: 576000, startAge: 59, endAge: 85, category: "変動費", memo: "日用品・医療含む" }
+            ],
+            tempIncome: [ 
+                { id: "tinc-1", name: "退職金", price: 8000000, count: 1, amount: 8000000, age: 60, memo: "" },
+                { id: "tinc-2", name: "失業給付", price: 150000, count: 4, amount: 600000, age: 60, memo: "非課税" }
+            ],
+            tempExpense: [ { id: "texp-2", name: "家電買替", price: 200000, count: 1, amount: 200000, age: 64, memo: "" } ],
+            pension: { user65Amount: 1500000, spouse65Amount: 0, kakuAmount: 410000, kikinAmount: 0, kikinStartAge: 60, useKaku: "いいえ", userKosei20: "いいえ", assumeUnder65: "いいえ", patternAYear: 60, patternAMonth: 0, patternBYear: 65, patternBMonth: 0, patternCYear: 70, patternCMonth: 0, rateAManual: "", rateBManual: "", rateCManual: "" },
+            todo: EMPTY_DATA.todo
+        };
+
+        let appData = JSON.parse(JSON.stringify(EMPTY_DATA));
+
+        window.onload = function() {
+            lucide.createIcons();
+            loadFromLocalStorage();
+            syncInputsFromData();
+            toggleSpouseFields();
+            calculateAndRefresh();
+
+            document.querySelector('main').addEventListener('change', function(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+                    if(e.target.id !== 'check-pat-a' && e.target.id !== 'check-pat-b' && e.target.id !== 'check-pat-c') {
+                        syncDataFromInputs();
+                        calculateAndRefresh();
+                        showToast("保存しました", "check", "text-emerald-400");
+                    }
+                }
+            });
+        };
+
+        window.onbeforeprint = function() { preparePrintReportData(); };
+        function triggerPrintReport() { preparePrintReportData(); setTimeout(() => { window.print(); }, 300); }
+
+        function preparePrintReportData() {
+            calculateAndRefresh();
+            const { basic, pension } = appData;
+            document.getElementById("print-date-string").innerText = `作成日: ${new Date().toISOString().slice(0, 10)}`;
+            document.getElementById("print-title-planname").innerText = basic.planName;
+            document.getElementById("print-info-age").innerText = `${basic.currentAge}歳 / ${basic.endAge}歳`;
+            document.getElementById("print-info-savings").innerText = basic.currentSavings.toLocaleString() + " 円";
+            document.getElementById("print-info-spouse").innerText = basic.householdType === "夫婦" ? `夫婦 (配偶者: ${basic.spouseAge}歳)` : "単身";
+            document.getElementById("print-compare-body").innerHTML = document.getElementById("compare-summary-body").innerHTML;
+            document.getElementById("print-danger-signs").innerHTML = document.getElementById("danger-signs-container").innerHTML;
+            
+            const pTodo = document.getElementById("print-todo-body");
+            pTodo.innerHTML = "";
+            appData.todo.forEach(t => {
+                pTodo.innerHTML += `<tr class="border-b"><td class="p-2 text-center font-bold">${t.status==='完了'?'■':'□'}</td><td class="p-2 text-center">${t.age}</td><td class="p-2">${t.task}</td><td class="p-2">${t.target}</td></tr>`;
+            });
+            document.getElementById("print-th-pension-a").innerText = `年金A`;
+            document.getElementById("print-th-pension-b").innerText = `年金B`;
+            document.getElementById("print-th-pension-c").innerText = `年金C`;
+            document.getElementById("print-detail-body").innerHTML = document.getElementById("detail-table-body").innerHTML;
+
+            const c = document.getElementById("savingsChart");
+            const img = document.getElementById("print-chart-image");
+            if (c && img) img.src = c.toDataURL("image/png");
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try { mergeParsedData(JSON.parse(saved)); } catch(e) { console.error(e); }
+            } else {
+                appData = JSON.parse(JSON.stringify(COUPLE_TEMPLATE));
+            }
+        }
+
+        function mergeParsedData(parsed) {
+            appData = { ...EMPTY_DATA, ...parsed };
+            if (!appData.insurance) appData.insurance = JSON.parse(JSON.stringify(EMPTY_DATA.insurance));
+            if (appData.settings.taxFreeBase === undefined) appData.settings.taxFreeBase = 350000;
+            if (appData.settings.taxFreeAdd === undefined) appData.settings.taxFreeAdd = 310000;
+        }
+
+        function loadTemplate(type) {
+            appData = JSON.parse(JSON.stringify(type === 'couple' ? COUPLE_TEMPLATE : SINGLE_TEMPLATE));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+            syncInputsFromData();
+            toggleSpouseFields();
+            calculateAndRefresh();
+            switchTab('basic');
+            showToast("テンプレートを展開しました", "sparkles", "text-blue-400");
+        }
+
+        function confirmClear() {
+            showConfirm("一括クリアの確認", "すべての入力欄を空にしますか？", () => {
+                appData = JSON.parse(JSON.stringify(EMPTY_DATA));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                syncInputsFromData(); toggleSpouseFields(); calculateAndRefresh(); switchTab('basic');
+            }, "クリアする");
+        }
+
+        function syncDataFromInputs() {
+            appData.basic = {
+                planName: str("basic-planName") || "未設定",
+                currentAge: val("basic-currentAge", 59),
+                endAge: val("basic-endAge", 80),
+                currentSavings: val("basic-currentSavings"),
+                minTargetSavings: val("basic-minTargetSavings"),
+                currentInvestment: val("basic-currentInvestment"),
+                investmentReturnRate: val("basic-investmentReturnRate"),
+                investmentMonthlyAmount: val("basic-investmentMonthlyAmount"),
+                investmentEndAge: val("basic-investmentEndAge"),
+                retireAge: val("basic-retireAge", 60),
+                householdType: str("basic-householdType"),
+                spouseAge: val("basic-spouseAge", 0),
+                spousePensionStart: val("basic-spousePensionStart", 65),
+                isSpouseDependent: str("basic-isSpouseDependent"),
+                dependents: val("basic-dependents")
+            };
+            
+            appData.settings = {
+                inflationRate: val("set-inflationRate"),
+                earlyReduction: val("set-earlyReduction"),
+                lateIncrease: val("set-lateIncrease"),
+                incomeTaxRate: val("set-incomeTaxRate"),
+                residentTaxRate: val("set-residentTaxRate"),
+                residentTaxFlat: val("set-residentTaxFlat"),
+                basicDeductionIncome: val("set-basicDeductionIncome"),
+                basicDeductionResident: val("set-basicDeductionResident"),
+                depDeductionIncome: val("set-depDeductionIncome"),
+                depDeductionResident: val("set-depDeductionResident"),
+                taxFreeLimit: val("set-taxFreeLimit"),
+                taxFreeBase: val("set-taxFreeBase"),
+                taxFreeAdd: val("set-taxFreeAdd"),
+                insuranceRate: val("set-insuranceRate"),
+                insuranceFlat: val("set-insuranceFlat"),
+                nursingFee: val("set-nursingFee"),
+                lateElderlyRate: val("set-lateElderlyRate"),
+                lateElderlyFlat: val("set-lateElderlyFlat")
+            };
+
+            const updateIncomeExpense = (arr, prefix) => {
+                arr.forEach(item => {
+                    const elName = el(`${prefix}name-${item.id}`);
+                    if(elName) {
+                        item.name = elName.value;
+                        item.monthly = val(`${prefix}monthly-${item.id}`);
+                        item.annual = item.monthly * 12;
+                        item.startAge = val(`${prefix}start-${item.id}`);
+                        item.endAge = val(`${prefix}end-${item.id}`);
+                        item.memo = str(`${prefix}memo-${item.id}`);
+                        if (prefix === 'inc-') item.taxInclude = str(`${prefix}tax-${item.id}`) === "はい";
+                        const annualLabel = el(`${prefix}annual-${item.id}`);
+                        if(annualLabel) annualLabel.innerText = item.annual.toLocaleString() + " 円";
+                    }
+                });
+            };
+            updateIncomeExpense(appData.income, 'inc-');
+            updateIncomeExpense(appData.expense, 'exp-');
+
+            const insC = document.querySelector('input[name="ins-mode"]:checked');
+            if(insC) appData.insurance.mode = insC.value;
+            appData.insurance.bulk.name = str("ins-bulk-name")||"民間保険料(一括)";
+            appData.insurance.bulk.payType = str("ins-bulk-payType")||"月払い"; 
+            appData.insurance.bulk.amount = val("ins-bulk-amount"); 
+            appData.insurance.bulk.annual = appData.insurance.bulk.payType==="月払い" ? appData.insurance.bulk.amount*12 : appData.insurance.bulk.amount; 
+            appData.insurance.bulk.startAge = val("ins-bulk-start"); 
+            appData.insurance.bulk.endAge = val("ins-bulk-end"); 
+            appData.insurance.bulk.memo = str("ins-bulk-memo");
+            if(el("ins-bulk-annual")) el("ins-bulk-annual").innerText = appData.insurance.bulk.annual.toLocaleString() + " 円";
+
+            appData.insurance.details.forEach(i => {
+                const nEl = el(`ins-det-name-${i.id}`);
+                if(nEl) { 
+                    i.name = nEl.value;
+                    i.payType = str(`ins-det-payType-${i.id}`); 
+                    i.amount = val(`ins-det-amount-${i.id}`); 
+                    i.annual = i.payType==="月払い" ? i.amount*12 : i.amount; 
+                    i.startAge = val(`ins-det-start-${i.id}`); 
+                    i.endAge = val(`ins-det-end-${i.id}`); 
+                    i.memo = str(`ins-det-memo-${i.id}`); 
+                    if(el(`ins-det-annual-${i.id}`)) el(`ins-det-annual-${i.id}`).innerText = i.annual.toLocaleString() + " 円";
+                }
+            });
+
+            const updateTemp = (arr, prefix) => {
+                arr.forEach(item => {
+                    const elName = el(`${prefix}name-${item.id}`);
+                    if(elName) {
+                        item.name = elName.value;
+                        const price = val(`${prefix}price-${item.id}`);
+                        const count = val(`${prefix}count-${item.id}`, 1);
+                        item.price = price;
+                        item.count = count;
+                        item.amount = price * count;
+                        item.age = val(`${prefix}age-${item.id}`);
+                        const totEl = el(`${prefix}total-${item.id}`);
+                        if(totEl) totEl.innerText = item.amount.toLocaleString();
+                    }
+                });
+            };
+            updateTemp(appData.tempIncome, 'tinc-');
+            updateTemp(appData.tempExpense, 'texp-');
+
+            appData.pension = { 
+                user65Amount: val("pension-user65Amount"), spouse65Amount: val("pension-spouse65Amount"), kakuAmount: val("pension-kakuAmount"), kikinAmount: val("pension-kikinAmount"), kikinStartAge: val("pension-kikinStartAge"), useKaku: str("pension-useKaku"), userKosei20: str("pension-userKosei20"), assumeUnder65: str("pension-assumeUnder65"), patternAYear: val("pension-a-year"), patternAMonth: val("pension-a-month"), patternBYear: val("pension-b-year"), patternBMonth: val("pension-b-month"), patternCYear: val("pension-c-year"), patternCMonth: val("pension-c-month"), rateAManual: str("rate-a-manual"), rateBManual: str("rate-b-manual"), rateCManual: str("rate-c-manual") 
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        }
+
+        function syncInputsFromData() {
+            const set = (id, v) => { const e = el(id); if(e) e.value = v; };
+            set("basic-planName", appData.basic.planName); set("basic-currentAge", appData.basic.currentAge); set("basic-endAge", appData.basic.endAge); set("basic-currentSavings", appData.basic.currentSavings); set("basic-minTargetSavings", appData.basic.minTargetSavings); set("basic-currentInvestment", appData.basic.currentInvestment); set("basic-investmentReturnRate", appData.basic.investmentReturnRate); set("basic-investmentMonthlyAmount", appData.basic.investmentMonthlyAmount); set("basic-investmentEndAge", appData.basic.investmentEndAge); set("basic-retireAge", appData.basic.retireAge); set("basic-householdType", appData.basic.householdType); set("basic-spouseAge", appData.basic.spouseAge); set("basic-spousePensionStart", appData.basic.spousePensionStart); set("basic-isSpouseDependent", appData.basic.isSpouseDependent); set("basic-dependents", appData.basic.dependents);
+            
+            const st = appData.settings; 
+            set("set-inflationRate", st.inflationRate); set("set-earlyReduction", st.earlyReduction); set("set-lateIncrease", st.lateIncrease); set("set-incomeTaxRate", st.incomeTaxRate); set("set-residentTaxRate", st.residentTaxRate); set("set-residentTaxFlat", st.residentTaxFlat); set("set-basicDeductionIncome", st.basicDeductionIncome); set("set-basicDeductionResident", st.basicDeductionResident); set("set-depDeductionIncome", st.depDeductionIncome); set("set-depDeductionResident", st.depDeductionResident); set("set-taxFreeLimit", st.taxFreeLimit); set("set-taxFreeBase", st.taxFreeBase); set("set-taxFreeAdd", st.taxFreeAdd); set("set-insuranceRate", st.insuranceRate); set("set-insuranceFlat", st.insuranceFlat); set("set-nursingFee", st.nursingFee); set("set-lateElderlyRate", st.lateElderlyRate); set("set-lateElderlyFlat", st.lateElderlyFlat);
+            
+            const p = appData.pension; 
+            set("pension-user65Amount", p.user65Amount); set("pension-spouse65Amount", p.spouse65Amount); set("pension-kakuAmount", p.kakuAmount); set("pension-kikinAmount", p.kikinAmount); set("pension-kikinStartAge", p.kikinStartAge); set("pension-useKaku", p.useKaku); set("pension-userKosei20", p.userKosei20); set("pension-assumeUnder65", p.assumeUnder65); set("pension-a-year", p.patternAYear); set("pension-a-month", p.patternAMonth); set("pension-b-year", p.patternBYear); set("pension-b-month", p.patternBMonth); set("pension-c-year", p.patternCYear); set("pension-c-month", p.patternCMonth); set("rate-a-manual", p.rateAManual); set("rate-b-manual", p.rateBManual); set("rate-c-manual", p.rateCManual);
+            
+            renderIncomeTable(); renderInsuranceTable(); renderExpenseTable(); renderTempTransactions(); renderTodoList();
+        }
+
+        function renderIncomeTable() {
+            const body = document.getElementById("income-table-body"); body.innerHTML = "";
+            appData.income.forEach(i => {
+                body.innerHTML += `<tr><td class="py-2.5 px-2"><input type="text" id="inc-name-${i.id}" class="w-full border px-1 py-1 rounded" value="${i.name}"></td><td class="px-2"><input type="number" id="inc-monthly-${i.id}" class="w-full border px-1 py-1 rounded text-right bg-amber-50" value="${i.monthly}"></td><td class="px-2 text-right font-medium" id="inc-annual-${i.id}">${i.annual.toLocaleString()} 円</td><td class="px-2"><input type="number" id="inc-start-${i.id}" class="w-full border px-1 py-1 rounded text-center bg-amber-50" value="${i.startAge}"></td><td class="px-2"><input type="number" id="inc-end-${i.id}" class="w-full border px-1 py-1 rounded text-center bg-amber-50" value="${i.endAge}"></td><td class="px-2 text-center"><select id="inc-tax-${i.id}" class="border rounded px-1 py-1"><option value="はい" ${i.taxInclude?"selected":""}>はい</option><option value="いいえ" ${!i.taxInclude?"selected":""}>いいえ</option></select></td><td class="px-2"><input type="text" id="inc-memo-${i.id}" class="w-full border px-1 py-1 rounded" value="${i.memo}"></td><td class="px-2 text-center"><button onclick="removeArrItem('income','${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
+            }); lucide.createIcons();
+        }
+
+        function renderExpenseTable() {
+            const body = document.getElementById("expense-table-body"); body.innerHTML = "";
+            appData.expense.forEach(i => {
+                body.innerHTML += `<tr><td class="py-2.5 px-2"><input type="text" id="exp-name-${i.id}" class="w-full border px-1 py-1 rounded" value="${i.name}"></td><td class="px-2"><input type="number" id="exp-monthly-${i.id}" class="w-full border px-1 py-1 rounded text-right bg-rose-50" value="${i.monthly}"></td><td class="px-2 text-right font-medium" id="exp-annual-${i.id}">${i.annual.toLocaleString()} 円</td><td class="px-2"><input type="number" id="exp-start-${i.id}" class="w-full border px-1 py-1 rounded text-center bg-rose-50" value="${i.startAge}"></td><td class="px-2"><input type="number" id="exp-end-${i.id}" class="w-full border px-1 py-1 rounded text-center bg-rose-50" value="${i.endAge}"></td><td class="px-2"><span class="bg-slate-100 px-2 py-1 rounded text-[10px]">${i.category}</span></td><td class="px-2"><input type="text" id="exp-memo-${i.id}" class="w-full border px-1 py-1 rounded" value="${i.memo}"></td><td class="px-2 text-center"><button onclick="removeArrItem('expense','${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
+            }); lucide.createIcons();
+        }
+
+        function renderInsuranceTable() {
+            document.querySelectorAll('input[name="ins-mode"]').forEach(e => e.checked = (e.value === appData.insurance.mode));
+            document.getElementById("ins-bulk-container").classList.toggle("hidden", appData.insurance.mode !== "一括");
+            document.getElementById("ins-details-container").classList.toggle("hidden", appData.insurance.mode === "一括");
+            
+            const b = appData.insurance.bulk;
+            document.getElementById("ins-bulk-body").innerHTML = `<tr><td class="py-2.5 px-2"><input type="text" id="ins-bulk-name" class="w-full border px-1 py-1 rounded font-semibold text-blue-800" value="${b.name}"></td><td class="px-2"><select id="ins-bulk-payType" class="w-full border px-1 py-1 rounded"><option value="月払い" ${b.payType==="月払い"?"selected":""}>月払い</option><option value="年払い" ${b.payType==="年払い"?"selected":""}>年払い</option></select></td><td class="px-2"><input type="number" id="ins-bulk-amount" class="w-full border px-1 py-1 rounded text-right bg-blue-50" value="${b.amount}"></td><td class="px-2 text-right font-medium" id="ins-bulk-annual">${b.annual.toLocaleString()} 円</td><td class="px-2"><input type="number" id="ins-bulk-start" class="w-full border px-1 py-1 rounded text-center bg-blue-50" value="${b.startAge}"></td><td class="px-2"><input type="number" id="ins-bulk-end" class="w-full border px-1 py-1 rounded text-center bg-blue-50" value="${b.endAge}"></td><td class="px-2"><input type="text" id="ins-bulk-memo" class="w-full border px-1 py-1 rounded" value="${b.memo}"></td><td class="px-2"></td></tr>`;
+            
+            const detBody = document.getElementById("ins-details-body"); detBody.innerHTML = "";
+            appData.insurance.details.forEach(i => {
+                detBody.innerHTML += `<tr><td class="py-2.5 px-2"><input type="text" id="ins-det-name-${i.id}" class="w-full border px-1 py-1 rounded font-semibold" value="${i.name}"></td><td class="px-2"><select id="ins-det-payType-${i.id}" class="w-full border px-1 py-1 rounded"><option value="月払い" ${i.payType==="月払い"?"selected":""}>月払い</option><option value="年払い" ${i.payType==="年払い"?"selected":""}>年払い</option></select></td><td class="px-2"><input type="number" id="ins-det-amount-${i.id}" class="w-full border px-1 py-1 rounded text-right bg-blue-50" value="${i.amount}"></td><td class="px-2 text-right font-medium" id="ins-det-annual-${i.id}">${i.annual.toLocaleString()} 円</td><td class="px-2"><input type="number" id="ins-det-start-${i.id}" class="w-full border px-1 py-1 rounded text-center bg-blue-50" value="${i.startAge}"></td><td class="px-2"><input type="number" id="ins-det-end-${i.id}" class="w-full border px-1 py-1 rounded text-center bg-blue-50" value="${i.endAge}"></td><td class="px-2"><input type="text" id="ins-det-memo-${i.id}" class="w-full border px-1 py-1 rounded" value="${i.memo}"></td><td class="px-2 text-center"><button onclick="removeArrItem('insuranceDetails','${i.id}')" class="text-rose-500 hover:bg-rose-50 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
+            });
+            lucide.createIcons();
+        }
+
+        function renderTempTransactions() {
+            const render = (arr, prefix, bodyId) => {
+                const body = document.getElementById(bodyId);
+                body.innerHTML = "";
+                arr.forEach((item) => {
+                    const price = item.price !== undefined ? item.price : item.amount;
+                    const count = item.count !== undefined ? item.count : 1;
+                    const arrName = prefix === 'tinc-' ? 'tempIncome' : 'tempExpense';
+                    const tr = document.createElement("tr");
+                    tr.className = "border-b border-opacity-50";
+                    tr.innerHTML = `
+                        <td class="py-1.5 px-1"><input type="text" id="${prefix}name-${item.id}" class="w-full px-1.5 py-1 border rounded text-[11px]" value="${item.name}"></td>
+                        <td class="py-1.5 px-1"><input type="number" id="${prefix}price-${item.id}" class="w-full px-1.5 py-1 border text-right rounded text-[11px]" value="${price}"></td>
+                        <td class="py-1.5 px-1"><input type="number" id="${prefix}count-${item.id}" class="w-full px-1.5 py-1 border text-center rounded bg-slate-50 text-[11px]" value="${count}"></td>
+                        <td class="py-1.5 px-1 text-right font-bold text-slate-600 text-[11px]" id="${prefix}total-${item.id}">${(price*count).toLocaleString()}</td>
+                        <td class="py-1.5 px-1"><input type="number" id="${prefix}age-${item.id}" class="w-full px-1.5 py-1 border text-center rounded text-[11px]" value="${item.age}"></td>
+                        <td class="py-1.5 px-1 text-center">
+                            <button onclick="removeArrItem('${arrName}', '${item.id}')" class="text-rose-500 hover:bg-rose-50 p-1 rounded" title="削除">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </td>
+                    `;
+                    body.appendChild(tr);
+                });
+            };
+            render(appData.tempIncome, 'tinc-', 'temp-income-body'); 
+            render(appData.tempExpense, 'texp-', 'temp-expense-body'); 
+            lucide.createIcons();
+        }
+
+        function addIncomeItem() { syncDataFromInputs(); appData.income.push({id: "inc-"+Date.now(), name: "追加収入", monthly: 0, annual: 0, startAge: appData.basic.currentAge, endAge: appData.basic.endAge, taxInclude: true, memo: ""}); renderIncomeTable(); calculateAndRefresh(); }
+        function addExpenseItem() { syncDataFromInputs(); appData.expense.push({id: "exp-"+Date.now(), name: "追加支出", monthly: 0, annual: 0, startAge: appData.basic.currentAge, endAge: appData.basic.endAge, category: "その他", memo: ""}); renderExpenseTable(); calculateAndRefresh(); }
+        function addInsuranceItem() { syncDataFromInputs(); appData.insurance.details.push({id: "ins-"+Date.now(), name: "追加保険", payType: "月払い", amount: 0, annual: 0, startAge: appData.basic.currentAge, endAge: appData.basic.endAge, memo: ""}); renderInsuranceTable(); calculateAndRefresh(); }
+        function addTempIncomeItem() { syncDataFromInputs(); appData.tempIncome.push({id: "tinc-"+Date.now(), name: "追加一時収入", price: 0, count: 1, amount: 0, age: appData.basic.currentAge, memo: ""}); renderTempTransactions(); calculateAndRefresh(); }
+        function addTempExpenseItem() { syncDataFromInputs(); appData.tempExpense.push({id: "texp-"+Date.now(), name: "追加一時支出", price: 0, count: 1, amount: 0, age: appData.basic.currentAge, memo: ""}); renderTempTransactions(); calculateAndRefresh(); }
+        
+        function removeArrItem(arrName, id) {
+            showConfirm("項目の削除", "削除しますか？", () => {
+                syncDataFromInputs(); 
+                if (arrName === 'insuranceDetails') {
+                    appData.insurance.details = appData.insurance.details.filter(i => i.id !== id);
+                    renderInsuranceTable();
+                } else {
+                    appData[arrName] = appData[arrName].filter(i => i.id !== id);
+                    if(arrName === 'income') renderIncomeTable(); 
+                    else if(arrName === 'expense') renderExpenseTable(); 
+                    else renderTempTransactions();
+                }
+                calculateAndRefresh();
+            });
+        }
+
+        function toggleInsuranceMode(mode) {
+            syncDataFromInputs();
+            appData.insurance.mode = mode;
+            renderInsuranceTable();
+            calculateAndRefresh();
+        }
+
+        function renderTodoList() {
+            const con = document.getElementById("todo-list-container"); con.innerHTML = "";
+            appData.todo.forEach(i => {
+                const c = i.status === "完了";
+                con.innerHTML += `<div class="grid grid-cols-12 py-2 px-3 text-xs items-center ${c?'bg-slate-50 text-slate-400':'bg-white text-slate-700'}"><div class="col-span-1 text-center"><input type="checkbox" onchange="toggleTodo('${i.id}', this)" ${c?'checked':''}></div><div class="col-span-2 text-center font-bold">${i.age}</div><div class="col-span-6 font-semibold ${c?'line-through':''}">${i.task}</div><div class="col-span-3"><span class="bg-indigo-50 text-indigo-700 border px-1 py-0.5 rounded">${i.target}</span></div></div>`;
+            });
+        }
+        
+        function toggleTodo(id, cb) { const t = appData.todo.find(i => i.id === id); if(t) { t.status = cb.checked ? "完了" : "未着手"; localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); renderTodoList(); } }
+        function toggleSpouseFields() { const h = document.getElementById("basic-householdType").value; document.querySelectorAll(".spouse-field").forEach(el => el.classList.toggle("opacity-40", h==="単身")); syncDataFromInputs(); calculateAndRefresh(); }
+        
+        function showConfirm(t, m, cb, ok="実行") { document.getElementById("confirm-title").innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i> ${t}`; document.getElementById("confirm-message").innerText = m; document.getElementById("confirm-ok-btn").innerText = ok; confirmCallback = cb; document.getElementById("confirm-modal").classList.remove("hidden"); lucide.createIcons(); }
+        function closeConfirmModal(res) { document.getElementById("confirm-modal").classList.add("hidden"); if (res && confirmCallback) confirmCallback(); confirmCallback = null; }
+        function toggleSection(id) { document.getElementById("section-"+id).classList.toggle("hidden"); document.getElementById("arrow-"+id).classList.toggle("rotate-180"); }
+        function showToast(m, icon="info", cls="text-emerald-400") { let t = document.getElementById("toast"); if(!t) { t = document.createElement("div"); t.id = "toast"; t.className = "hidden fixed bottom-4 right-4 bg-white border shadow-lg rounded-lg p-3 flex items-center gap-2 z-50"; t.innerHTML = `<i id="toast-icon"></i><span id="toast-text" class="text-sm font-medium text-slate-700"></span>`; document.body.appendChild(t); } document.getElementById("toast-text").innerText = m; const i = document.getElementById("toast-icon"); i.className = `w-5 h-5 ${cls}`; i.setAttribute("data-lucide", icon); lucide.createIcons(); t.classList.remove("hidden"); setTimeout(()=>t.classList.add("hidden"), 2500); }
+        function switchTab(name) { document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden")); document.querySelectorAll("[id^='tab-']").forEach(el => el.classList.remove("tab-active")); document.getElementById("content-"+name).classList.remove("hidden"); document.getElementById("tab-"+name).classList.add("tab-active"); if(name==='results') calculateAndRefresh(); }
+
+        // パターン表示の切り替え
+        function updatePatternDisplay() {
+            const showA = document.getElementById('check-pat-a').checked;
+            const showB = document.getElementById('check-pat-b').checked;
+            const showC = document.getElementById('check-pat-c').checked;
+            
+            document.body.classList.toggle('show-pat-a', showA);
+            document.body.classList.toggle('show-pat-b', showB);
+            document.body.classList.toggle('show-pat-c', showC);
+
+            // ヘッダーのcolspan調整
+            let visibleCount = 0;
+            if(showA) visibleCount++;
+            if(showB) visibleCount++;
+            if(showC) visibleCount++;
+
+            const thPension = document.getElementById('th-group-pension');
+            const thTax = document.getElementById('th-group-tax');
+            
+            // 1パターンの時は3列、2パターンは6列、3パターンは9列
+            if(thPension) thPension.colSpan = visibleCount;
+            if(thTax) thTax.colSpan = visibleCount * 3;
+
+            // グラフのデータセット表示切り替え
+            if(savingsChartInstance) {
+                savingsChartInstance.data.datasets[0].hidden = !showA;
+                savingsChartInstance.data.datasets[1].hidden = !showB;
+                savingsChartInstance.data.datasets[2].hidden = !showC;
+                savingsChartInstance.update();
+            }
+        }
+
+        // ツールチップ代替用モーダル表示関数
+        function showInfoModal(text) {
+            document.getElementById('info-message').innerText = text;
+            document.getElementById('info-modal').classList.remove('hidden');
+        }
+
+        function generatePensionTooltip(d, label) {
+            if(!d) return "";
+            return `【年金内訳(${label})】\n・本人分: ${Math.round(d.main).toLocaleString()}円\n` + (d.spouse>0?`・配偶者分: ${Math.round(d.spouse).toLocaleString()}円\n`:"") + (d.kaku>0?`・加給年金: ${Math.round(d.kaku).toLocaleString()}円\n`:"") + (d.kikin>0?`・厚生基金: ${Math.round(d.kikin).toLocaleString()}円`:"");
+        }
+        function generateIncomeTaxTooltip(d, label) {
+            if(!d) return "";
+            return `【所得税(${label}) - 当年収入ベース】\n給与等: ${Math.round(d.currentSalaryPart).toLocaleString()}円\n年金等: ${Math.round(d.currentPensionPart).toLocaleString()}円\n控除等: -${Math.round(d.incomeDeductionIncome).toLocaleString()}円\n課税対象: ${Math.round(d.standardTaxableIncome).toLocaleString()}円`;
+        }
+        function generateResidentTaxTooltip(tax, label) {
+            const d = tax.calcData;
+            if(!d) return "";
+            let tip = `【住民税(${label}) - 前年収入ベース】\n`;
+            tip += `給与所得: ${Math.round(d.prevSalaryPart).toLocaleString()}円\n`;
+            tip += `年金所得: ${Math.round(d.prevPensionPart).toLocaleString()}円\n`;
+            tip += `合計所得: ${Math.round(d.prevTotalIncome).toLocaleString()}円\n`;
+            tip += `----------------\n`;
+            tip += `[非課税判定]\n`;
+            tip += `非課税ライン: ${Math.round(d.taxFreeLimitActual).toLocaleString()}円 以下\n`;
+            if(tax.isTaxFree) {
+                tip += `判定: 本人は非課税 (0円)\n`;
+                tip += `※配偶者等に課税所得がある場合は世帯非課税にはなりません。`;
+                return tip;
+            } else {
+                tip += `判定: 課税対象\n`;
+                tip += `----------------\n`;
+                tip += `[税額計算]\n`;
+                tip += `控除等: -${Math.round(d.incomeDeductionResident).toLocaleString()}円\n`;
+                tip += `課税対象額: ${Math.round(d.standardTaxableResident).toLocaleString()}円`;
+                return tip;
+            }
+        }
+        function generateSocialFeeTooltip(d, label) {
+            if(!d) return "";
+            let tip = `【社保内訳(${label})】\n`;
+            if(d.kokuhoIncome>0||d.kokuhoFlat>0) tip += `・国保(本人): ${Math.round(d.kokuhoIncome+d.kokuhoFlat).toLocaleString()}円\n`;
+            if(d.lateElderlyIncome>0||d.lateElderlyFlat>0) tip += `・後期高齢(本人): ${Math.round(d.lateElderlyIncome+d.lateElderlyFlat).toLocaleString()}円\n`;
+            if(d.spouseKokuhoFlat>0) tip += `・国保(配偶者): ${Math.round(d.spouseKokuhoFlat).toLocaleString()}円\n`;
+            if(d.spouseLateElderlyFlat>0) tip += `・後期高齢(配偶者): ${Math.round(d.spouseLateElderlyFlat).toLocaleString()}円\n`;
+            if(d.depKokuhoFlatTotal>0) tip += `・国保(他扶養): ${Math.round(d.depKokuhoFlatTotal).toLocaleString()}円\n`;
+            if(d.nursingFee>0) tip += `・介護(本人): ${Math.round(d.nursingFee).toLocaleString()}円\n`;
+            if(d.spouseNursingFee>0) tip += `・介護(配偶者): ${Math.round(d.spouseNursingFee).toLocaleString()}円\n`;
+            return tip.trim();
+        }
+        function generateIncomeExpenseTooltip(det, type) {
+            let tip = `【${type}内訳】\n`, has = false;
+            for(let k in det) { if(det[k]>0) { tip += `・${k}: ${Math.round(det[k]).toLocaleString()}円\n`; has = true; } }
+            return has ? tip : tip + "なし";
+        }
+
+        function calculateAndRefresh() {
+            const { basic, settings, income, insurance, expense, tempIncome, tempExpense, pension } = appData;
+            const baseMonths = 65 * 12;
+            const calcRate = (y, m) => { const d = baseMonths - (y*12+m); return d>0 ? 1.0-(settings.earlyReduction/100)*d : 1.0+(settings.lateIncrease/100)*(-d); };
+            
+            const rA = calcRate(pension.patternAYear||60, pension.patternAMonth||0);
+            const rB = calcRate(pension.patternBYear||65, pension.patternBMonth||0);
+            const rC = calcRate(pension.patternCYear||70, pension.patternCMonth||0);
+
+            document.getElementById("rate-a-auto").innerText = rA.toFixed(3) + " 倍"; 
+            document.getElementById("rate-b-auto").innerText = rB.toFixed(3) + " 倍"; 
+            document.getElementById("rate-c-auto").innerText = rC.toFixed(3) + " 倍";
+            document.getElementById("th-pension-a").innerText = `年金A`; 
+            document.getElementById("th-pension-b").innerText = `年金B`; 
+            document.getElementById("th-pension-c").innerText = `年金C`;
+
+            const aRA = parseFloat(pension.rateAManual) || rA; 
+            const aRB = parseFloat(pension.rateBManual) || rB; 
+            const aRC = parseFloat(pension.rateCManual) || rC;
+            const bPA = pension.user65Amount || 0;
+            
+            document.getElementById("pension-a-amount").innerText = Math.round(bPA*aRA).toLocaleString() + " 円/年"; 
+            document.getElementById("pension-b-amount").innerText = Math.round(bPA*aRB).toLocaleString() + " 円/年"; 
+            document.getElementById("pension-c-amount").innerText = Math.round(bPA*aRC).toLocaleString() + " 円/年";
+
+            document.getElementById("summary-planname").innerText = basic.planName; 
+            document.getElementById("summary-age").innerText = `${basic.currentAge}歳 / ${basic.endAge}歳`; 
+            document.getElementById("summary-savings").innerText = (basic.currentSavings + (basic.currentInvestment||0)).toLocaleString() + " 円"; 
+            document.getElementById("summary-household").innerText = basic.householdType;
+
+            const simResults = [];
+            let cA = basic.currentSavings, iA = basic.currentInvestment||0, 
+                cB = basic.currentSavings, iB = basic.currentInvestment||0, 
+                cC = basic.currentSavings, iC = basic.currentInvestment||0;
+            let prevTaxIncludeIncome = null, prevPensionA = null, prevPensionB = null, prevPensionC = null;
+
+            for (let i = 0; i < (basic.endAge - basic.currentAge + 1); i++) {
+                const age = basic.currentAge + i; 
+                const sAge = basic.spouseAge + i;
+                const incD = {}, expD = {};
+                
+                let totalContIncome = 0;
+                let taxIncludeIncome = 0;
+                income.forEach(item => { 
+                    if (age >= item.startAge && age <= item.endAge) { 
+                        totalContIncome += item.annual; 
+                        incD[item.name] = (incD[item.name]||0)+item.annual;
+                        if (item.taxInclude) taxIncludeIncome += item.annual; 
+                    } 
+                });
+
+                let totalContExpense = 0; 
+                const infM = Math.pow(1+(settings.inflationRate/100), i);
+
+                if(insurance) {
+                    if(insurance.mode === "一括") { 
+                        if(age >= insurance.bulk.startAge && age <= insurance.bulk.endAge) { 
+                            const v = insurance.bulk.annual * infM;
+                            totalContExpense += v; 
+                            expD[insurance.bulk.name] = v; 
+                        } 
+                    } else { 
+                        insurance.details.forEach(itm => { 
+                            if(age >= itm.startAge && age <= itm.endAge) { 
+                                const v = itm.annual * infM; 
+                                totalContExpense += v; 
+                                expD[itm.name] = v; 
+                            } 
+                        }); 
+                    }
+                }
+
+                expense.forEach(item => { 
+                    if (age >= item.startAge && age <= item.endAge) { 
+                        const v = item.annual * infM;
+                        totalContExpense += v; 
+                        expD[item.name] = v;
+                    } 
+                });
+
+                let totalTempIncome = 0; 
+                tempIncome.forEach(item => { if (item.age === age) { totalTempIncome += item.amount; incD[item.name] = (incD[item.name]||0)+item.amount; } });
+                let totalTempExpense = 0; 
+                tempExpense.forEach(item => { if (item.age === age) { totalTempExpense += item.amount; expD[item.name] = (expD[item.name]||0)+item.amount; } });
+
+                const calcP = (y, m, rate) => {
+                    let main = 0; 
+                    if (age > y) main = bPA * rate; 
+                    else if (age === y) main = (bPA * rate) * ((12 - (m || 0)) / 12);
+                    
+                    let spouse = (basic.householdType === "夫婦" && sAge >= basic.spousePensionStart) ? pension.spouse65Amount : 0;
+                    let kaku = (pension.useKaku === "はい" && basic.householdType === "夫婦" && pension.userKosei20 === "はい" && age >= 65 && age >= y && sAge < 65) ? pension.kakuAmount : 0;
+                    let kikin = age >= (pension.kikinStartAge || 60) ? (pension.kikinAmount || 0) : 0;
+                    
+                    return { 
+                        total: main + spouse + kaku + kikin,
+                        taxable: main + kaku + kikin,
+                        details: { main, spouse, kaku, kikin }
+                    };
+                };
+
+                const pA = calcP(pension.patternAYear||60, pension.patternAMonth, aRA);
+                const pB = calcP(pension.patternBYear||65, pension.patternBMonth, aRB);
+                const pC = calcP(pension.patternCYear||70, pension.patternCMonth, aRC);
+
+                const basePrevSalary = prevTaxIncludeIncome !== null ? prevTaxIncludeIncome : taxIncludeIncome; 
+                const basePrevPensionA = prevPensionA !== null ? prevPensionA : pA.taxable; 
+                const basePrevPensionB = prevPensionB !== null ? prevPensionB : pB.taxable; 
+                const basePrevPensionC = prevPensionC !== null ? prevPensionC : pC.taxable;
+
+                const calcT = (currS, currP, prevS, prevP) => {
+                    const calcPensionDeduction = (a, inc) => {
+                        if(inc === 0) return 0;
+                        let d = 0;
+                        if(a < 65) {
+                            if(inc <= 1300000) d = 600000;
+                            else if(inc <= 4100000) d = inc * 0.25 + 275000;
+                            else if(inc <= 7700000) d = inc * 0.15 + 685000;
+                            else if(inc <= 10000000) d = inc * 0.05 + 1455000;
+                            else d = 1955000;
+                        } else {
+                            if(inc <= 3300000) d = 1100000;
+                            else if(inc <= 4100000) d = inc * 0.25 + 275000;
+                            else if(inc <= 7700000) d = inc * 0.15 + 685000;
+                            else if(inc <= 10000000) d = inc * 0.05 + 1455000;
+                            else d = 1955000;
+                        }
+                        return Math.min(inc, d);
+                    };
+
+                    let cS = Math.max(0, currS - 550000);
+                    let cP = currP - calcPensionDeduction(age, currP);
+                    const deps = basic.dependents + (basic.householdType === "夫婦" && basic.isSpouseDependent === "はい" ? 1 : 0);
+                    const iDeduction = (settings.basicDeductionIncome || 480000) + ((settings.depDeductionIncome || 380000) * deps);
+                    const iTaxable = Math.max(0, cS + cP - iDeduction);
+                    const iTax = iTaxable * (settings.incomeTaxRate / 100);
+
+                    let pS = Math.max(0, prevS - 550000);
+                    let pP = prevP - calcPensionDeduction(age - 1, prevP);
+                    const rDeduction = (settings.basicDeductionResident || 430000) + ((settings.depDeductionResident || 330000) * deps);
+                    const rTaxable = Math.max(0, pS + pP - rDeduction);
+                    
+                    const prevTotalIncome = pS + pP;
+                    const taxFreeLimitActual = ((1 + deps) > 1 ? settings.taxFreeBase * (1 + deps) + settings.taxFreeAdd : settings.taxFreeLimit);
+                    const isTF = prevTotalIncome <= taxFreeLimitActual;
+                    const rTax = isTF ? 0 : rTaxable * (settings.residentTaxRate / 100) + settings.residentTaxFlat;
+
+                    let sFee = 0;
+                    let cD = { 
+                        currentSalaryPart: cS, currentPensionPart: cP, incomeDeductionIncome: iDeduction, standardTaxableIncome: iTaxable,
+                        prevSalaryPart: pS, prevPensionPart: pP, prevTotalIncome: prevTotalIncome, taxFreeLimitActual: taxFreeLimitActual, 
+                        incomeDeductionResident: rDeduction, standardTaxableResident: rTaxable,
+                        kokuhoIncome: 0, kokuhoFlat: 0, lateElderlyIncome: 0, lateElderlyFlat: 0, spouseKokuhoFlat: 0, spouseLateElderlyFlat: 0, depKokuhoFlatTotal: 0, nursingFee: 0, spouseNursingFee: 0 
+                    };
+
+                    if (age < 75) { 
+                        cD.kokuhoIncome = rTaxable * (settings.insuranceRate / 100);
+                        cD.kokuhoFlat = settings.insuranceFlat;
+                        sFee += cD.kokuhoIncome + cD.kokuhoFlat; 
+                    } else { 
+                        cD.lateElderlyIncome = Math.max(0, pS + pP - 430000) * (settings.lateElderlyRate / 100);
+                        cD.lateElderlyFlat = settings.lateElderlyFlat;
+                        sFee += cD.lateElderlyIncome + cD.lateElderlyFlat; 
+                    }
+
+                    if (basic.householdType === "夫婦") { 
+                        if(sAge < 75) {
+                            cD.spouseKokuhoFlat = settings.insuranceFlat;
+                            sFee += cD.spouseKokuhoFlat;
+                        } else {
+                            cD.spouseLateElderlyFlat = settings.lateElderlyFlat;
+                            sFee += cD.spouseLateElderlyFlat;
+                        }
+                    }
+                    if (basic.dependents > 0) { 
+                        cD.depKokuhoFlatTotal = settings.insuranceFlat * basic.dependents;
+                        sFee += cD.depKokuhoFlatTotal; 
+                    }
+                    
+                    if (age >= 65) { cD.nursingFee = settings.nursingFee; sFee += cD.nursingFee; }
+                    if (basic.householdType === "夫婦" && sAge >= 65) { cD.spouseNursingFee = settings.nursingFee; sFee += cD.spouseNursingFee; }
+
+                    return { total: Math.round(iTax + rTax + sFee), incomeTax: Math.round(iTax), residentTax: Math.round(rTax), social: Math.round(sFee), isTaxFree: isTF, calcData: cD };
+                };
+
+                const tA = calcT(taxIncludeIncome, pA.taxable, basePrevSalary, basePrevPensionA);
+                const tB = calcT(taxIncludeIncome, pB.taxable, basePrevSalary, basePrevPensionB);
+                const tC = calcT(taxIncludeIncome, pC.taxable, basePrevSalary, basePrevPensionC);
+                
+                prevTaxIncludeIncome = taxIncludeIncome; 
+                prevPensionA = pA.taxable; 
+                prevPensionB = pB.taxable; 
+                prevPensionC = pC.taxable;
+
+                const fA = totalContIncome + totalTempIncome + pA.total - (totalContExpense + totalTempExpense + tA.total);
+                const fB = totalContIncome + totalTempIncome + pB.total - (totalContExpense + totalTempExpense + tB.total);
+                const fC = totalContIncome + totalTempIncome + pC.total - (totalContExpense + totalTempExpense + tC.total);
+                
+                let yI = age <= (basic.investmentEndAge || 65) ? (basic.investmentMonthlyAmount || 0) * 12 : 0;
+                const iR = (basic.investmentReturnRate || 0) / 100;
+
+                iA = (iA + yI) * (1 + iR); iB = (iB + yI) * (1 + iR); iC = (iC + yI) * (1 + iR);
+                cA = cA + fA - yI; cB = cB + fB - yI; cC = cC + fC - yI;
+
+                if(cA < 0 && iA > 0) { if(iA >= -cA) { iA += cA; cA = 0; } else { cA += iA; iA = 0; } } 
+                if(cB < 0 && iB > 0) { if(iB >= -cB) { iB += cB; cB = 0; } else { cB += iB; iB = 0; } } 
+                if(cC < 0 && iC > 0) { if(iC >= -cC) { iC += cC; cC = 0; } else { cC += iC; iC = 0; } }
+
+                simResults.push({ 
+                    age, spouseAge: basic.householdType === "夫婦" ? sAge : null, 
+                    totalContIncome, totalTempIncome, totalContExpense, totalTempExpense, 
+                    incomeDetails: incD, expenseDetails: expD,
+                    pensionA: pA.total, pensionB: pB.total, pensionC: pC.total, 
+                    pensionDetailsA: pA.details, pensionDetailsB: pB.details, pensionDetailsC: pC.details,
+                    taxA: tA, taxB: tB, taxC: tC, 
+                    flowA: fA, savingsA: cA + iA, 
+                    flowB: fB, savingsB: cB + iB, 
+                    flowC: fC, savingsC: cC + iC 
+                });
+            }
+            
+            renderSummaryComparison(simResults, aRA, aRB, aRC); 
+            renderDetailTable(simResults); 
+            renderChart(simResults); 
+            renderDangerSigns(simResults);
+
+            // チェックボックスの状態を反映
+            updatePatternDisplay();
+        }
+
+        function getStatusText(sav, min) { return sav >= min+5000000 ? `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold text-[10px]">安泰</span>` : sav >= min ? `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold text-[10px]">注意</span>` : `<span class="bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-bold text-[10px]">目標割れ</span>`; }
+
+        function renderSummaryComparison(res, rA, rB, rC) {
+            const body = document.getElementById("compare-summary-body"); body.innerHTML = "";
+            const min = appData.basic.minTargetSavings || 0;
+            const p = appData.pension;
+            [{id:'A',n:`A(${p.patternAYear||60}歳${p.patternAMonth||0}月)`,r:rA,k:'savingsA',cls:'pat-a'},{id:'B',n:`B(${p.patternBYear||65}歳${p.patternBMonth||0}月)`,r:rB,k:'savingsB',cls:'pat-b'},{id:'C',n:`C(${p.patternCYear||70}歳${p.patternCMonth||0}月)`,r:rC,k:'savingsC',cls:'pat-c'}].forEach(pt => {
+                const s65 = res.find(x=>x.age===65)?.[pt.k]||0, s70 = res.find(x=>x.age===70)?.[pt.k]||0, s75 = res.find(x=>x.age===75)?.[pt.k]||0, s80 = res.find(x=>x.age===80)?.[pt.k]||0;
+                const mAge = res.find(x=>x[pt.k]<min)?.age;
+                body.innerHTML += `<tr class="border-b hover:bg-slate-50 ${pt.cls}"><td class="py-3 px-3 font-bold">${pt.n}</td><td class="py-3 px-3 text-center">${pt.n.match(/\((.*?)\)/)[1]}</td><td class="py-3 px-3 text-center">${pt.r.toFixed(3)}倍</td><td class="py-3 px-3 text-right ${s65<min?'text-rose-600':''}">${Math.round(s65).toLocaleString()}</td><td class="py-3 px-3 text-right ${s70<min?'text-rose-600':''}">${Math.round(s70).toLocaleString()}</td><td class="py-3 px-3 text-right ${s75<min?'text-rose-600':''}">${Math.round(s75).toLocaleString()}</td><td class="py-3 px-3 text-right ${s80<min?'text-rose-600':''}">${Math.round(s80).toLocaleString()}</td><td class="py-3 px-3 text-center font-bold ${mAge?'text-rose-600 bg-rose-50':'text-emerald-700'}">${mAge?mAge+'歳':'-'}</td><td class="py-3 px-3 text-center">${getStatusText(res[res.length-1][pt.k], min)}</td></tr>`;
+            });
+        }
+
+        function renderDetailTable(res) {
+            const body = document.getElementById("detail-table-body"); body.innerHTML = "";
+            const min = appData.basic.minTargetSavings || 0;
+            
+            // スマホ等でツールチップが見れない環境のため、クリックでモーダル表示するよう onClick を追加
+            const td = (v, cls, tip="") => {
+                if(tip) {
+                    const cleanTip = tip.replace(/"/g, '&quot;');
+                    const jsTip = tip.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+                    return `<td class="p-1.5 border-r text-right whitespace-nowrap cursor-pointer hover:bg-slate-200 underline decoration-dashed decoration-slate-300 ${cls}" title="${cleanTip}" onclick="showInfoModal('${jsTip}')">${v}</td>`;
+                }
+                return `<td class="p-1.5 border-r text-right whitespace-nowrap ${cls}">${v}</td>`;
+            };
+            const fm = (n) => Math.round(n).toLocaleString();
+            
+            res.forEach(r => {
+                const tr = document.createElement("tr"); tr.className = "hover:bg-slate-50 text-slate-700";
+                const taxH = (t, pt, cls) => td(fm(t.incomeTax),`bg-amber-50/20 ${cls}`,generateIncomeTaxTooltip(t.calcData,pt)) + td((t.isTaxFree?'<span class="text-[8px] bg-emerald-100 text-emerald-700 px-1 rounded block w-max ml-auto">非課税</span>':'')+fm(t.residentTax),`bg-amber-50/20 leading-tight ${cls}`,generateResidentTaxTooltip(t,pt)) + td(fm(t.social),`bg-amber-50/20 ${cls}`,generateSocialFeeTooltip(t.calcData,pt));
+                const patH = (f, s, c, cls) => td(fm(f),`font-semibold bg-${c}-50/10 ${cls} ${f<0?'text-rose-600':'text-blue-600'}`) + td(fm(s),`font-bold text-[12px] bg-${c}-50/20 ${cls} ${s<min?'text-rose-600 bg-rose-50':''}`) + `<td class="p-1.5 border-r text-center bg-${c}-50/10 ${cls}">${getStatusText(s, min)}</td>`;
+
+                tr.innerHTML = `<td class="p-1.5 border-r text-center font-bold bg-slate-50">${r.age} <span class="text-[8px] text-slate-400 block -mt-1">${r.spouseAge?`(${r.spouseAge})`:'-'}</span></td>` +
+                    td(fm(r.totalContIncome+r.totalTempIncome), "", generateIncomeExpenseTooltip(r.incomeDetails,"収入")) +
+                    td(fm(r.totalContExpense+r.totalTempExpense), "text-rose-600", generateIncomeExpenseTooltip(r.expenseDetails,"支出")) +
+                    td(fm(r.pensionA), "bg-blue-50/20 pat-a", generatePensionTooltip(r.pensionDetailsA,"A")) + td(fm(r.pensionB), "bg-blue-50/20 pat-b", generatePensionTooltip(r.pensionDetailsB,"B")) + td(fm(r.pensionC), "bg-blue-50/20 pat-c", generatePensionTooltip(r.pensionDetailsC,"C")) +
+                    taxH(r.taxA,"A","pat-a") + taxH(r.taxB,"B","pat-b") + taxH(r.taxC,"C","pat-c") + patH(r.flowA, r.savingsA, "emerald", "pat-a") + patH(r.flowB, r.savingsB, "blue", "pat-b") + patH(r.flowC, r.savingsC, "indigo", "pat-c");
+                body.appendChild(tr);
+            });
+        }
+
+        function renderChart(res) {
+            const ctx = document.getElementById('savingsChart').getContext('2d');
+            if(savingsChartInstance) savingsChartInstance.destroy();
+            savingsChartInstance = new Chart(ctx, { type: 'line', data: { labels: res.map(r=>r.age+"歳"), datasets: [
+                { label: 'パターンA(繰上)', data: res.map(r=>r.savingsA), borderColor: '#b45309', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderWidth: 3, tension: 0.1, fill: true },
+                { label: 'パターンB(通常)', data: res.map(r=>r.savingsB), borderColor: '#1d4ed8', backgroundColor: 'rgba(59, 130, 246, 0.05)', borderWidth: 3, tension: 0.1, fill: true },
+                { label: 'パターンC(繰下)', data: res.map(r=>r.savingsC), borderColor: '#047857', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderWidth: 3, tension: 0.1, fill: true }
+            ]}, options: { animation: false, responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => (v/10000).toLocaleString()+" 万円" } }, x: { grid: { display: false } } } } });
+        }
+
+        function renderDangerSigns(res) {
+            const con = document.getElementById("danger-signs-container"); con.innerHTML = "";
+            const min = appData.basic.minTargetSavings || 0;
+            const patMinus = ['A','B','C'].filter(p => res.some(r => r.age <= 75 && r['savings'+p] < min));
+            
+            const addSign = (t, s, r, a) => {
+                const c = s==="safe" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : (s==="warning" ? "bg-amber-50 border-amber-200 text-amber-800" : (s==="danger" ? "bg-rose-50 border-rose-200 text-rose-800" : "bg-indigo-50 border-indigo-200 text-indigo-800"));
+                const i = s==="safe" ? "check-circle" : (s==="warning" ? "alert-triangle" : (s==="danger" ? "alert-circle" : "info"));
+                con.innerHTML += `<div class="p-3 rounded-lg border ${c}"><div class="flex items-center gap-1.5 font-bold mb-1 text-xs"><i data-lucide="${i}" class="w-4 h-4"></i> ${t}</div><p class="leading-relaxed mb-1 font-medium">${r}</p><p class="text-slate-500 italic">対策: ${a}</p></div>`;
+            };
+
+            if(patMinus.length>0) addSign("75歳までに目標割れリスク", "danger", `パターン [${patMinus.join('・')}] で75歳時点で最低目標額(${min.toLocaleString()}円)を下回ります。`, "支出見直しか、働く期間の延長を検討してください。");
+            else addSign("75歳時点の資金バランス", "safe", `3パターンとも75歳までは目標貯蓄額(${min.toLocaleString()}円)を維持できています。`, "比較的安心なプランです。");
+
+            if((appData.income.find(i=>i.name==="退職前給与")?.annual||0)===0) addSign("退職直前の給与が未入力", "warning", "前年の給与所得が0として計算されています。", "退職翌年の税金が実際より安く表示されている可能性があります。");
+            
+            let taxFreeAges = [];
+            res.forEach(r => { if(r.taxB.isTaxFree) taxFreeAges.push(r.age); });
+            if(taxFreeAges.length>0) {
+                let periods = [];
+                let start = taxFreeAges[0];
+                let prev = start;
+                for(let i=1; i<taxFreeAges.length; i++) {
+                    if(taxFreeAges[i] === prev + 1) { prev = taxFreeAges[i]; } 
+                    else { periods.push(start === prev ? `${start}歳` : `${start}〜${prev}歳`); start = taxFreeAges[i]; prev = start; }
+                }
+                periods.push(start === prev ? `${start}歳` : `${start}〜${prev}歳`);
+                
+                addSign("住民税非課税の見込み (パターンB基準)", "info", `合計所得が非課税ラインを下回り、${periods.join(', ')}の期間は「本人が非課税」となる見込みです。`, "詳細表の住民税の金額をクリック(タップ)すると、非課税ラインの金額や判定の内訳が確認できます。");
+            }
+        }
+
+        function openSaveModal() { document.getElementById("save-filename").value = `退職後試算_${appData.basic.planName||"マイプラン"}_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`; document.getElementById("save-modal").classList.remove("hidden"); }
+        function closeSaveModal() { document.getElementById("save-modal").classList.add("hidden"); }
+        function executeExport() {
+            try {
+                const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2)); a.download = `${document.getElementById("save-filename").value.trim()||"data"}.json`; document.body.appendChild(a); a.click(); a.remove(); closeSaveModal(); showToast("保存しました", "download", "text-blue-400");
+            } catch(e) { showToast("保存失敗", "x-circle", "text-rose-400"); }
+        }
+
+        function importData(e) {
+            const r = new FileReader(); r.onload = function() { try { mergeParsedData(JSON.parse(r.result)); localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); syncInputsFromData(); toggleSpouseFields(); calculateAndRefresh(); switchTab('basic'); showToast("読込成功", "check-circle", "text-emerald-400"); } catch(e) { alert("形式エラー"); } };
+            if(e.target.files[0]) r.readAsText(e.target.files[0]);
+        }
+
+        function exportToCSV() {
+            calculateAndRefresh(); let csv = "\uFEFF年齢,配偶者,総収入,総支出,年金A,年金B,年金C,所得税A,住民税A,社保A,所得税B,住民税B,社保B,所得税C,住民税C,社保C,A年間収支,A残高,B年間収支,B残高,C年間収支,C残高\n";
+            document.querySelectorAll("#detail-table-body tr").forEach(tr => {
+                const d = []; tr.querySelectorAll("td").forEach((td, i) => {
+                    if(![16,19,22].includes(i)) { let t = td.innerText.replace(/,/g, '').replace(' 円','').replace(/\n/g, ' ').trim(); if(t.includes("非課税")) t=t.replace('非課税','').trim(); if(t!=="") d.push(t); }
+                }); csv += d.join(",") + "\n";
+            });
+            const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8;'})); a.download = `資金推移_${appData.basic.planName||"プラン"}.csv`; document.body.appendChild(a); a.click(); a.remove(); showToast("CSV出力完了", "file-text", "text-blue-400");
+        }
+    </script>
+</body>
+</html>
