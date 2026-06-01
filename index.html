@@ -1015,6 +1015,19 @@
         const el = (id) => document.getElementById(id);
         const val = (id, def=0) => parseFloat(el(id)?.value) || def;
         const str = (id) => el(id)?.value || "";
+        const cloneData = (obj) => JSON.parse(JSON.stringify(obj));
+
+        const DEFAULT_TODO_LIST = [
+            { id: "td-1", age: "59 / 退職前", task: "ねんきん定期便・ねんきんネットで正確な年金見込額を確認する", target: "年金事務所", status: "未着手" },
+            { id: "td-2", age: "59 / 退職前", task: "退職後の健康保険（任意継続、国民健康保険、家族の扶養）を比較計算する", target: "会社/市役所", status: "未着手" },
+            { id: "td-3", age: "60 / 退職時", task: "離職票・源泉徴収票・健康保険資格喪失証明書を会社から受け取る", target: "勤務先会社", status: "未着手" },
+            { id: "td-4", age: "60 / 退職後", task: "ハローワークに行き、雇用保険（失業保険）の求職申込みをする", target: "ハローワーク", status: "未着手" },
+            { id: "td-5", age: "60 / 退職後", task: "市区町村にて国民健康保険、国民年金（または任意加入）の加入手続きをする", target: "市区町村役場", status: "未着手" },
+            { id: "td-6", age: "61 / 退職翌年", task: "確定申告（所得税還付手続き）および医療費控除、退職金にかかる税調整を確認する", target: "税務署", status: "未着手" },
+            { id: "td-7", age: "64 / 受給前", task: "年金事務所へ行き、加給年金要件や繰下げ可能状況を確認する", target: "年金事務所", status: "未着手" },
+            { id: "td-8", age: "65 / 年金開始", task: "年金請求手続き（受給パターンの決定と最終手続き）", target: "年金事務所", status: "未着手" },
+            { id: "td-9", age: "66〜 / 開始後", task: "繰り下げを選択する場合の、貯蓄残高の適宜確認と、受取計画の再検証", target: "ご家庭", status: "未着手" }
+        ];
 
         const EMPTY_DATA = {
             basic: { planName: "新規プラン", currentAge: 59, endAge: 80, currentSavings: 0, minTargetSavings: 3000000, currentInvestment: 0, investmentMonthlyAmount: 0, investmentReturnRate: 0.0, investmentEndAge: 65, retireAge: 60, householdType: "夫婦", spouseAge: 58, spousePensionStart: 65, isSpouseDependent: "はい", dependents: 0 },
@@ -1025,7 +1038,7 @@
             tempIncome: [ { id: "tinc-1", name: "退職金", price: 0, count: 1, amount: 0, age: 60, memo: "" }, { id: "tinc-2", name: "失業給付", price: 0, count: 1, amount: 0, age: 60, memo: "非課税" } ],
             tempExpense: [ { id: "texp-1", name: "住宅修繕", price: 0, count: 1, amount: 0, age: 65, memo: "" } ],
             pension: { user65Amount: 0, spouse65Amount: 0, kakuAmount: 410000, kikinAmount: 0, kikinStartAge: 60, useKaku: "はい", userKosei20: "はい", assumeUnder65: "はい", patternAYear: 60, patternAMonth: 0, patternBYear: 65, patternBMonth: 0, patternCYear: 70, patternCMonth: 0, rateAManual: "", rateBManual: "", rateCManual: "" },
-            todo: [ { id: "td-1", age: "59", task: "年金見込額の確認", target: "年金事務所", status: "未着手" } ]
+            todo: cloneData(DEFAULT_TODO_LIST)
         };
 
         const COUPLE_TEMPLATE = {
@@ -1055,7 +1068,7 @@
                 { id: "texp-3", name: "車購入", price: 2500000, count: 1, amount: 2500000, age: 63, memo: "最後の買替" }
             ],
             pension: { user65Amount: 1800000, spouse65Amount: 780000, kakuAmount: 410000, kikinAmount: 0, kikinStartAge: 60, useKaku: "はい", userKosei20: "はい", assumeUnder65: "はい", patternAYear: 60, patternAMonth: 0, patternBYear: 65, patternBMonth: 0, patternCYear: 70, patternCMonth: 0, rateAManual: "", rateBManual: "", rateCManual: "" },
-            todo: EMPTY_DATA.todo
+            todo: cloneData(DEFAULT_TODO_LIST)
         };
 
         const SINGLE_TEMPLATE = {
@@ -1078,10 +1091,10 @@
             ],
             tempExpense: [ { id: "texp-2", name: "家電買替", price: 200000, count: 1, amount: 200000, age: 64, memo: "" } ],
             pension: { user65Amount: 1500000, spouse65Amount: 0, kakuAmount: 410000, kikinAmount: 0, kikinStartAge: 60, useKaku: "いいえ", userKosei20: "いいえ", assumeUnder65: "いいえ", patternAYear: 60, patternAMonth: 0, patternBYear: 65, patternBMonth: 0, patternCYear: 70, patternCMonth: 0, rateAManual: "", rateBManual: "", rateCManual: "" },
-            todo: EMPTY_DATA.todo
+            todo: cloneData(DEFAULT_TODO_LIST)
         };
 
-        let appData = JSON.parse(JSON.stringify(EMPTY_DATA));
+        let appData = cloneData(EMPTY_DATA);
 
         window.onload = function() {
             lucide.createIcons();
@@ -1133,21 +1146,30 @@
         function loadFromLocalStorage() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                try { mergeParsedData(JSON.parse(saved)); } catch(e) { console.error(e); }
+                try {
+                    mergeParsedData(JSON.parse(saved));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                } catch(e) {
+                    console.error(e);
+                    appData = cloneData(COUPLE_TEMPLATE);
+                }
             } else {
-                appData = JSON.parse(JSON.stringify(COUPLE_TEMPLATE));
+                appData = cloneData(COUPLE_TEMPLATE);
             }
         }
 
         function mergeParsedData(parsed) {
-            appData = { ...EMPTY_DATA, ...parsed };
-            if (!appData.insurance) appData.insurance = JSON.parse(JSON.stringify(EMPTY_DATA.insurance));
+            appData = { ...cloneData(EMPTY_DATA), ...parsed };
+            if (!appData.insurance) appData.insurance = cloneData(EMPTY_DATA.insurance);
+            if (!Array.isArray(appData.todo) || appData.todo.length === 0 || (appData.todo.length === 1 && appData.todo[0].task === "年金見込額の確認")) {
+                appData.todo = cloneData(DEFAULT_TODO_LIST);
+            }
             if (appData.settings.taxFreeBase === undefined) appData.settings.taxFreeBase = 350000;
             if (appData.settings.taxFreeAdd === undefined) appData.settings.taxFreeAdd = 310000;
         }
 
         function loadTemplate(type) {
-            appData = JSON.parse(JSON.stringify(type === 'couple' ? COUPLE_TEMPLATE : SINGLE_TEMPLATE));
+            appData = cloneData(type === 'couple' ? COUPLE_TEMPLATE : SINGLE_TEMPLATE);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
             syncInputsFromData();
             toggleSpouseFields();
@@ -1158,7 +1180,7 @@
 
         function confirmClear() {
             showConfirm("一括クリアの確認", "すべての入力欄を空にしますか？", () => {
-                appData = JSON.parse(JSON.stringify(EMPTY_DATA));
+                appData = cloneData(EMPTY_DATA);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
                 syncInputsFromData(); toggleSpouseFields(); calculateAndRefresh(); switchTab('basic');
             }, "クリアする");
