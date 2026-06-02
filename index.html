@@ -1159,13 +1159,36 @@
         }
 
         function mergeParsedData(parsed) {
-            appData = { ...cloneData(EMPTY_DATA), ...parsed };
-            if (!appData.insurance) appData.insurance = cloneData(EMPTY_DATA.insurance);
+            const safeParsed = parsed || {};
+
+            appData = { ...cloneData(EMPTY_DATA), ...safeParsed };
+
+            // 旧バージョンの保存データに新しい項目が入っていない場合でも、
+            // 詳細設定・基本情報・年金設定などの初期値が欠けないようにする。
+            appData.basic = { ...cloneData(EMPTY_DATA.basic), ...(safeParsed.basic || {}) };
+            appData.settings = { ...cloneData(EMPTY_DATA.settings), ...(safeParsed.settings || {}) };
+            appData.pension = { ...cloneData(EMPTY_DATA.pension), ...(safeParsed.pension || {}) };
+
+            appData.insurance = {
+                ...cloneData(EMPTY_DATA.insurance),
+                ...(safeParsed.insurance || {}),
+                bulk: {
+                    ...cloneData(EMPTY_DATA.insurance.bulk),
+                    ...((safeParsed.insurance && safeParsed.insurance.bulk) || {})
+                },
+                details: Array.isArray(safeParsed.insurance?.details)
+                    ? safeParsed.insurance.details
+                    : cloneData(EMPTY_DATA.insurance.details)
+            };
+
+            if (!Array.isArray(appData.income) || appData.income.length === 0) appData.income = cloneData(EMPTY_DATA.income);
+            if (!Array.isArray(appData.expense) || appData.expense.length === 0) appData.expense = cloneData(EMPTY_DATA.expense);
+            if (!Array.isArray(appData.tempIncome)) appData.tempIncome = cloneData(EMPTY_DATA.tempIncome);
+            if (!Array.isArray(appData.tempExpense)) appData.tempExpense = cloneData(EMPTY_DATA.tempExpense);
+
             if (!Array.isArray(appData.todo) || appData.todo.length === 0 || (appData.todo.length === 1 && appData.todo[0].task === "年金見込額の確認")) {
                 appData.todo = cloneData(DEFAULT_TODO_LIST);
             }
-            if (appData.settings.taxFreeBase === undefined) appData.settings.taxFreeBase = 350000;
-            if (appData.settings.taxFreeAdd === undefined) appData.settings.taxFreeAdd = 310000;
         }
 
         function loadTemplate(type) {
@@ -1176,6 +1199,19 @@
             calculateAndRefresh();
             switchTab('basic');
             showToast("テンプレートを展開しました", "sparkles", "text-blue-400");
+        }
+
+        function confirmReset() {
+            showConfirm("リセットの確認", "保存済みデータを削除して、夫婦標準プランに戻しますか？", () => {
+                localStorage.removeItem(STORAGE_KEY);
+                appData = cloneData(COUPLE_TEMPLATE);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                syncInputsFromData();
+                toggleSpouseFields();
+                calculateAndRefresh();
+                switchTab('basic');
+                showToast("リセットしました", "rotate-ccw", "text-blue-400");
+            }, "リセットする");
         }
 
         function confirmClear() {
